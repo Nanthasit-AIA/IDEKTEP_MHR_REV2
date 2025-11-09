@@ -7,7 +7,10 @@
     "dev": "nuxt dev",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
-    "postinstall": "nuxt prepare"
+    "postinstall": "nuxt prepare",
+    "dev:nuxt": "nuxt dev -o",
+    "dev:flask": "cd backend && python app.py",
+    "dev:all": "concurrently \"npm run dev:nuxt\" \"npm run dev:flask\""
   },
   "dependencies": {
     "@nuxt/content": "^3.8.0",
@@ -16,12 +19,19 @@
     "@nuxt/scripts": "^0.13.0",
     "@nuxt/test-utils": "^3.20.1",
     "@nuxt/ui": "^4.1.0",
+    "@tailwindcss/vite": "^4.1.17",
     "@unhead/vue": "^2.0.19",
     "better-sqlite3": "^12.4.1",
     "eslint": "^9.39.1",
     "nuxt": "^4.2.1",
+    "tailwindcss": "^4.1.17",
     "typescript": "^5.9.3",
     "vue": "^3.5.22",
     "vue-router": "^4.6.3"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
   }
 }
+
+
