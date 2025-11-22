@@ -51,7 +51,8 @@ const actionButtons = [
                                 <!-- Header: title + green status dot -->
                                 <div class="w-full flex items-center justify-between border-b-4 border-white pb-4">
                                     <h2 class="text-2xl font-sm px-10">wellness analysis</h2>
-                                    <span class="w-6 h-6 rounded-full bg-lime-400 mr-10"></span>
+                                    <span class="text-white text-l font-sm w-24 ml-auto">analysis</span>
+                                    <span class="w-8 h-8 rounded-full bg-lime-400 mr-10"></span>
                                 </div>
 
                                 <!-- Content -->
@@ -117,28 +118,6 @@ const actionButtons = [
                                     </div>
                                 </div>
                             </div>
-                            <!-- Result Box -->
-                            <!-- 
-                            <div class="absolute w-[70%] top-90 left-1/2 transform -translate-x-1/2 bg-purple-300 bg-opacity-100 rounded-2xl py-4 mt-6 flex items-center px-5 hover:scale-110">
-                                <span class="text-white text-2xl mr-4">💓</span>
-                                <span class="text-white text-2xl font-black w-32">SYS</span>
-                                <span class="text-white text-4xl font-sm ml-30 mr-2">120</span>
-                                <span class="text-white text-xl w-16 ml-auto">mmHg</span>
-                            </div>
-
-                            <div class="absolute w-[70%] top-110 left-1/2 transform -translate-x-1/2 bg-blue-300 bg-opacity-100 rounded-2xl py-4 mt-6 flex items-center px-5 hover:scale-110">
-                                <span class="text-white text-2xl mr-4">💓</span>
-                                <span class="text-white text-2xl font-black w-32">DIA</span>
-                                <span class="text-white text-4xl font-sm ml-30 mr-2">80</span>
-                                <span class="text-white text-xl w-16 ml-auto">mmHg</span>
-                            </div>
-
-                            <div class="absolute w-[70%] top-130 left-1/2 transform -translate-x-1/2 bg-green-300 bg-opacity-100 rounded-2xl py-4 mt-6 flex items-center px-5 hover:scale-110">
-                                <span class="text-white text-2xl mr-4">🫀</span>
-                                <span class="text-white text-2xl font-black w-32">PULSE</span>
-                                <span class="text-white text-4xl font-sm ml-30 mr-2">100</span>
-                                <span class="text-white text-xl w-16 ml-auto">BPM</span>
-                            </div> -->
                         </div>
                     </div>
                 </div>

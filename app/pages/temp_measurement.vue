@@ -1,13 +1,131 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
+import { io, Socket } from 'socket.io-client';
 
 const router = useRouter()
 const headerMessages = [
     "Mobility Healthcare Robot",
     "Temperature Measurement"
 ]
+
+interface IrtData {
+    temp_context: string;
+    temp_max: number | null;
+    temp_min?: number | null;
+    temp_result: number | string | null;
+}
+
+interface IrtState {
+    state: string;
+}
+
+const irtData = ref<IrtData>({
+    temp_context: "",
+    temp_max: null,
+    temp_min: null,
+    temp_result: null
+});
+
+const irtState = ref<IrtState>({
+    state: "Idle"
+});
+
+const measuring = ref(false);
+
+// 🔹 Live video & result image
+const videoActive = ref(false);
+const videoUrl = ref("http://localhost:5000/video_feed");
+
+// 👉 when detection finished, backend sends this
+const resultImageUrl = ref<string | null>(null);
+
+let socket: Socket | null = null;
+
+onMounted(() => {
+    socket = io("http://localhost:5000");
+
+    socket.on("connect", () => {
+        console.log("Connected to IRT Socket.IO");
+    });
+
+    socket.on("disconnect", () => {
+        console.log("Disconnected from IRT Socket.IO");
+    });
+
+    socket.on("irt_data", (payload: IrtData) => {
+        irtData.value = payload;
+    });
+
+    socket.on("irt_state", (payload: IrtState) => {
+        irtState.value = payload;
+
+        if (payload.state === "Measuring") {
+            measuring.value = true;
+            resultImageUrl.value = null; // clear old result when new measurement starts
+        } else if (
+            payload.state === "Complete" ||
+            payload.state === "Error" ||
+            payload.state === "Ready"
+        ) {
+            measuring.value = false;
+        }
+
+        // optional: auto-stop video when complete
+        if (payload.state === "Complete") {
+            videoActive.value = false;
+        }
+    });
+
+    // 🔹 listen for result image
+    socket.on("irt_result", (payload: { image_url: string }) => {
+        // combine backend host + relative URL
+        resultImageUrl.value = `http://localhost:5000${payload.image_url}`;
+        console.log("IRT result image:", resultImageUrl.value);
+    });
+});
+
+onUnmounted(() => {
+    if (socket) {
+        socket.disconnect();
+        socket = null;
+    }
+});
+
+const doMeasurement = () => {
+    // Start a new measurement: show video, clear old result
+    resultImageUrl.value = null;
+    videoActive.value = true;
+    irtState.value.state = "Measuring";
+};
+
+const indicatorClass = computed(() => {
+    switch (irtState.value.state) {
+        case "Complete":
+            return "bg-green-400";
+        case "Measuring":
+            return "bg-yellow-400 animate-pulse";
+        case "Error":
+            return "bg-red-500";
+        default:
+            return "bg-gray-300";
+    }
+});
+
+const buttonLabel = computed(() => {
+    if (irtState.value.state === "Measuring") return "Measuring...";
+    if (irtState.value.state === "Complete") return "Measured";
+    return videoActive.value ? "Stop" : "Measurement";
+});
+
+const displayTempResult = computed(() => {
+    if (irtData.value.temp_result === null || irtData.value.temp_result === undefined) {
+        return "N/A";
+    }
+    return irtData.value.temp_result;
+});
 </script>
+
 
 <template>
     <div
@@ -21,16 +139,12 @@ const headerMessages = [
                 <div class="flex items-center justify-center mb-8 relative">
 
                     <!-- Side Button -->
-                    <button
-                        @click="router.back()"
-                        class="absolute flex items-center left-0 top-0 justify-center w-32 h-16 bg-gray-300 rounded-full hover:bg-gray-400 transition"
-                        >
+                    <button @click="router.back()"
+                        class="absolute flex items-center left-0 top-0 justify-center w-32 h-16 bg-gray-300 rounded-full hover:bg-gray-400 transition">
                         ← Back
                     </button>
-                    <button
-                        @click="router.push('/bp_measurement')"
-                        class="absolute flex items-center right-0 top-0 justify-center w-32 h-16 bg-gray-0 rounded-full hover:bg-gray-400 transition"
-                        >
+                    <button @click="router.push('/bp_measurement')"
+                        class="absolute flex items-center right-0 top-0 justify-center w-32 h-16 bg-gray-0 rounded-full hover:bg-gray-400 transition">
 
                     </button>
 
@@ -38,15 +152,31 @@ const headerMessages = [
                     <div class="flex flex-col items-center justify-center">
                         <div class="w-[640px] h-[640px] bg-gray-300 rounded-2xl overflow-hidden flex flex-col items-center justify-center relative"
                             style="aspect-ratio: 1;">
-                            <p class="text-black text-xl font-medium">Camera not Active</p>
+                            <template v-if="resultImageUrl">
+                                <img :src="resultImageUrl" alt="IRT Heatmap Result"
+                                    class="w-full h-full object-cover" />
+                            </template>
+
+                            <!-- 2) Otherwise show live video if active -->
+                            <template v-else-if="videoActive">
+                                <img :src="videoUrl" alt="IR Camera Stream" class="w-full h-full object-cover" />
+                            </template>
+
+                            <!-- 3) Otherwise show placeholder text -->
+                            <template v-else>
+                                <p class="text-black text-xl font-medium">Camera not Active</p>
+                            </template>
 
                             <!-- Temperature Box -->
                             <div class="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black rounded-2xl px- py-6 flex items-center justify-between w-[90%]"
                                 style="min-width: 60%;">
                                 <span class="text-white text-2xl font-bold ml-5">
-                                    Temperature : N/A  °C
+                                    Temperature : {{ displayTempResult }} °C
                                 </span>
-                                <div :class="['w-8 h-8 rounded-full bg-white mr-10']"></div>
+                                <span class="text-white text-l font-sm w-32 ml-auto">{{ irtData.temp_context }}
+                                    <span v-if="irtData.temp_max !== null"> {{ irtData.temp_max }}°C</span>
+                                </span>
+                                <div :class="['w-8 h-8 rounded-full mr-10', indicatorClass]"></div>
                             </div>
                         </div>
                     </div>
@@ -54,11 +184,10 @@ const headerMessages = [
             </div>
 
             <!-- Measurement Button -->
-            <button
-                class="px-20 py-8 bg-black text-white text-3xl font-extrabold rounded-2xl shadow-xl 
+            <button @click="doMeasurement" class="px-20 py-8 bg-black text-white text-3xl font-extrabold rounded-2xl shadow-xl 
                 hover:scale-110 transition-all duration-600 whitespace-nowrap text-center
-                hover:bg-blue-600" >
-                Measurement
+                hover:bg-blue-600">
+                {{ measuring ? "Measuring..." : "Measurement" }}
             </button>
         </div>
     </div>
