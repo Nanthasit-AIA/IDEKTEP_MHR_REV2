@@ -1,44 +1,63 @@
 <<<<<<< HEAD
 # IDEKTEP_MHR_APP_REV2
 =======
-# Nuxt Minimal Starter
+# Nuxt Starter
 
 Look at the [Nuxt documentation](https://nuxt.com/docs/getting-started/introduction) to learn more.
 
-## Setup
-
-Make sure to install dependencies:
+## Setup Frontend
+## Node.js and nvm Installation:
 
 ```bash
-# npm
-npm install
+# Download and install npm:
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
 
-# pnpm
-pnpm install
+# in lieu of restarting the shell
+\. "$HOME/.nvm/nvm.sh"
 
-# yarn
-yarn install
+# Download and install Node.js:
+nvm install 24
 
-# bun
-bun install
+# Verify the Node.js version:
+node -v 
+
+# Verify npm version:
+npm -v 
+```
+## Nuxt Installation:
+```bash
+# Install nuxt with npm
+npm create nuxt@latest <project-name>
+# change directory into your new project from your terminal:
+cd <project-name>
+```
+## Tailwindcss Installation:
+```bash
+# Install tailwindcss with npm
+npm install tailwindcss @tailwindcss/vite
 ```
 
+## Setup Backend
+## Flask Installation:
+```bash
+# create venv
+python -m venv <project-name>
+
+# Activate venv
+source <project-name>/bin/activate
+
+# Install Flask with pip
+pip install flask flask-cors
+```
 ## Development Server
 
 Start the development server on `http://localhost:3000`:
 
 ```bash
-# npm
-npm run dev
-
-# pnpm
-pnpm dev
-
-# yarn
-yarn dev
-
-# bun
-bun run dev
+# Install concurrently
+npm install -D concurrently
+# run
+npm run dev:all
 ```
 
 ## Production
