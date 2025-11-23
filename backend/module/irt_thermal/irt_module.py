@@ -224,22 +224,34 @@ def irt_detect_cam(socketio: SocketIO, face_cam: int, usb_port: str, temp_offset
 
     try:
         ser = initialize_serial(usb_port)
-        socketio.emit('irt_state', {'state': 'Connecting'})
+        socketio.emit('irt_update', {
+            'irt_state': {'state': 'Connecting'},
+            'irt_indicator': {'state': 'm'}
+        })
         time.sleep(0.5)
 
         if not ser.is_open:
-            socketio.emit('irt_state', {'state': 'Error'})
+            socketio.emit('irt_update', {
+                'irt_state': {'state': 'serial e.'},
+                'irt_indicator': {'state': 'e'}
+            })
             error("Serial port not open.")
             return
 
         info("Serial port is open and configured.")
-        socketio.emit('irt_state', {'state': 'Connected'})
+        socketio.emit('irt_update', {
+                'irt_state': {'state': 'Connected'},
+                'irt_indicator': {'state': 'm'}
+        })
         time.sleep(0.5)
 
         screen_width, screen_height = 640, 480
         picam2 = Picamera2(camera_num=face_cam)
 
-        socketio.emit('irt_state', {'state': 'Camera open'})
+        socketio.emit('irt_update', {
+                'irt_state': {'state': 'Camera active'},
+                'irt_indicator': {'state': 'm'}
+        })
         time.sleep(0.5)
 
         try:
@@ -250,7 +262,11 @@ def irt_detect_cam(socketio: SocketIO, face_cam: int, usb_port: str, temp_offset
             picam2.start()
         except Exception as cam_err:
             error(f"Error starting camera: {cam_err}")
-            socketio.emit('irt_state', {'state': 'Error'})
+            socketio.emit('irt_update', {
+                'irt_state': {'state': 'camera e.'},
+                'irt_indicator': {'state': 'e'}
+            })
+
             if picam2 is not None:
                 picam2.stop()
                 picam2.close()
@@ -263,11 +279,17 @@ def irt_detect_cam(socketio: SocketIO, face_cam: int, usb_port: str, temp_offset
 
         if face_cascade.empty():
             error("Error loading Haar cascade.")
-            socketio.emit('irt_state', {'state': 'Error'})
+            socketio.emit('irt_update', {
+                'irt_state': {'state': 'face e.'},
+                'irt_indicator': {'state': 'e'}
+            })
             return
 
         last_heatmap = None
-        socketio.emit('irt_state', {'state': 'Ready'})
+        socketio.emit('irt_update', {
+                'irt_state': {'state': 'Ready'},
+                'irt_indicator': {'state': 'm'}
+        })
         info("IRT ready for measurement.")
 
         while True:
@@ -290,9 +312,15 @@ def irt_detect_cam(socketio: SocketIO, face_cam: int, usb_port: str, temp_offset
             )
 
             if len(faces) == 0:
-                socketio.emit('irt_state', {'state': 'Face Detect'})
+                socketio.emit('irt_update', {
+                        'irt_state': {'state': 'Find a Face'},
+                        'irt_indicator': {'state': 'm'}
+                })
             else:
-                socketio.emit('irt_state', {'state': 'Meas.'})
+                socketio.emit('irt_update', {
+                        'irt_state': {'state': 'Meas.'},
+                        'irt_indicator': {'state': 'm'}
+                })
 
                 for (x, y, w, h) in faces:
                     cv2.rectangle(roi_frame, (x, y), (x + w, y + h), (0, 0, 255), 2)
@@ -308,7 +336,6 @@ def irt_detect_cam(socketio: SocketIO, face_cam: int, usb_port: str, temp_offset
 
                     # Emit interim data (no final result yet)
                     socketio.emit('irt_data', {
-                        'temp_context': 'detect:',
                         'temp_max': temp_data_max,
                         'temp_min': temp_data_min,
                         'temp_result': 'N/A'
@@ -320,14 +347,12 @@ def irt_detect_cam(socketio: SocketIO, face_cam: int, usb_port: str, temp_offset
                         os.path.join(os.getcwd(), 'static', 'irt_image', 'heatmap_images.png')
                     )
 
-            # Final result when collected enough samples
             if len(temp_data["temp_data_collect"]) == 10:
                 temp_data_result = round(
                     sum(temp_data["temp_data_collect"]) / len(temp_data["temp_data_collect"]), 1
                 )
 
                 socketio.emit('irt_data', {
-                    'temp_context': 'result',
                     'temp_max': temp_data_max,
                     'temp_min': temp_data_min,
                     'temp_result': temp_data_result
@@ -340,12 +365,12 @@ def irt_detect_cam(socketio: SocketIO, face_cam: int, usb_port: str, temp_offset
                         os.path.join(os.getcwd(), 'static', 'irt_image', 'irt_images.png')
                     )
                     image_rel_path = '/static/irt_image/irt_images.png'
-                    # image_abs_path = os.path.join(os.getcwd(), 'static', 'irt_image', 'heatmap_images.png')
-                    # Ensure folder exists (see 2.2 below)
                     socketio.emit('irt_result', {'image_url': image_rel_path})
-                # publish_run(temp_data_result)  # PUBLISH MHR if needed
 
-                socketio.emit('irt_state', {'state': 'Complete'})
+                socketio.emit('irt_update', {
+                        'irt_state': {'state': 'Complete'},
+                        'irt_indicator': {'state': 'c'}
+                })
 
                 if ser is not None and ser.is_open:
                     ser.close()
@@ -353,10 +378,9 @@ def irt_detect_cam(socketio: SocketIO, face_cam: int, usb_port: str, temp_offset
                     picam2.stop()
                     picam2.close()
 
-                print("Serial port and camera closed.")
+                info("Serial port and camera closed.")
                 return temp_data_result
 
-            # Stream camera frame
             ret, buffer = cv2.imencode('.jpg', frame)
             if not ret:
                 continue
@@ -367,13 +391,22 @@ def irt_detect_cam(socketio: SocketIO, face_cam: int, usb_port: str, temp_offset
 
     except serial.SerialException as e:
         error(f"Serial communication error: {e}")
-        socketio.emit('irt_state', {'state': 'Error'})
+        socketio.emit('irt_update', {
+                'irt_state': {'state': 'serial e.'},
+                'irt_indicator': {'state': 'e'}
+            })
     except KeyboardInterrupt:
         print("Stopped by user.")
-        socketio.emit('irt_state', {'state': 'Error'})
+        socketio.emit('irt_update', {
+                'irt_state': {'state': 'user stop'},
+                'irt_indicator': {'state': 'e'}
+            })
     except Exception as e:
         error(f"Unexpected error in irt_detect_cam: {e}")
-        socketio.emit('irt_state', {'state': 'Error'})
+        socketio.emit('irt_update', {
+                'irt_state': {'state': 'detect e.'},
+                'irt_indicator': {'state': 'e'}
+            })
     finally:
         # Ensure resources are closed
         try:
@@ -389,16 +422,4 @@ def irt_detect_cam(socketio: SocketIO, face_cam: int, usb_port: str, temp_offset
         except Exception:
             pass
 
-        print("Cleanup done in irt_detect_cam.")
-
-def get_mockup_data():
-    return {
-        "irt_data": {
-            "temp_context": "detect:",
-            "temp_max": 36,
-            "temp_result": 36
-        },
-        "irt_state": {
-            "state": "Complete"
-        }
-    }
+        info("Cleanup done in irt_detect_cam.")

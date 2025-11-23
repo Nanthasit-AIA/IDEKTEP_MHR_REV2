@@ -20,6 +20,10 @@ interface IrtState {
     state: string;
 }
 
+interface IrtIndicator {
+    state: string;
+}
+
 const irtData = ref<IrtData>({
     temp_context: "",
     temp_max: null,
@@ -29,6 +33,10 @@ const irtData = ref<IrtData>({
 
 const irtState = ref<IrtState>({
     state: "Idle"
+});
+
+const irtIndicator = ref<IrtIndicator>({
+    state: ""
 });
 
 const measuring = ref(false);
@@ -41,6 +49,7 @@ const videoUrl = ref("http://localhost:5000/video_feed");
 const resultImageUrl = ref<string | null>(null);
 
 let socket: Socket | null = null;
+let autoNavigateTimeout: ReturnType<typeof setTimeout> | null = null;
 
 onMounted(() => {
     socket = io("http://localhost:5000");
@@ -57,23 +66,35 @@ onMounted(() => {
         irtData.value = payload;
     });
 
-    socket.on("irt_state", (payload: IrtState) => {
-        irtState.value = payload;
+    // ✅ listen to combined state + indicator from backend
+    //    payload shape: { irt_state: { state: string }, irt_indicator: { state: 'm' | 'c' | 'e' } }
+    socket.on("irt_update", (payload: { irt_state: IrtState; irt_indicator: IrtIndicator }) => {
+        irtState.value = payload.irt_state;
+        irtIndicator.value = payload.irt_indicator;
 
-        if (payload.state === "Measuring") {
+        const state = payload.irt_state.state;
+
+        if (state === "Measuring") {
             measuring.value = true;
             resultImageUrl.value = null; // clear old result when new measurement starts
+            videoActive.value = true;
         } else if (
-            payload.state === "Complete" ||
-            payload.state === "Error" ||
-            payload.state === "Ready"
+            state === "Complete" ||
+            state === "Error" ||
+            state === "Ready"
         ) {
             measuring.value = false;
         }
 
-        // optional: auto-stop video when complete
-        if (payload.state === "Complete") {
+        // ✅ auto-stop video and schedule navigation when complete
+        if (state === "Complete") {
             videoActive.value = false;
+
+            if (!autoNavigateTimeout) {
+                autoNavigateTimeout = setTimeout(() => {
+                    router.push('/bp_measurement');
+                }, 5000);
+            }
         }
     });
 
@@ -90,6 +111,10 @@ onUnmounted(() => {
         socket.disconnect();
         socket = null;
     }
+    if (autoNavigateTimeout) {
+        clearTimeout(autoNavigateTimeout);
+        autoNavigateTimeout = null;
+    }
 });
 
 const doMeasurement = () => {
@@ -99,13 +124,24 @@ const doMeasurement = () => {
     irtState.value.state = "Measuring";
 };
 
+const handleMeasurementClick = () => {
+    // ✅ If measurement already complete, go to BP measurement
+    if (irtState.value.state === "Complete") {
+        router.push('/bp_measurement');
+        return;
+    }
+    // Otherwise start / restart measurement
+    doMeasurement();
+};
+
 const indicatorClass = computed(() => {
-    switch (irtState.value.state) {
-        case "Complete":
+    // ✅ now controlled by irtIndicator, not irtState
+    switch (irtIndicator.value.state) {
+        case "c":
             return "bg-green-400";
-        case "Measuring":
+        case "m":
             return "bg-yellow-400 animate-pulse";
-        case "Error":
+        case "e":
             return "bg-red-500";
         default:
             return "bg-gray-300";
@@ -113,14 +149,16 @@ const indicatorClass = computed(() => {
 });
 
 const buttonLabel = computed(() => {
-    if (irtState.value.state === "Measuring") return "Measuring...";
-    if (irtState.value.state === "Complete") return "Measured";
-    return videoActive.value ? "Stop" : "Measurement";
+    // ✅ no more “Stop” label
+    const state = irtState.value.state;
+    if (state === "Measuring") return "Measuring...";
+    if (state === "Complete") return "Go to BP Measurement";
+    return "Measurement";
 });
 
 const displayTempResult = computed(() => {
     if (irtData.value.temp_result === null || irtData.value.temp_result === undefined) {
-        return "N/A";
+        return "";
     }
     return irtData.value.temp_result;
 });
@@ -173,7 +211,10 @@ const displayTempResult = computed(() => {
                                 <span class="text-white text-2xl font-bold ml-10">
                                     Temperature : {{ displayTempResult }} °C
                                 </span>
-                                <span class="text-white text-l font-sm w-32 ml-auto text-right">{{ irtState.state }}
+                                <span
+                                    v-if="irtState.state !== 'Complete'"
+                                    class="text-white text-l font-sm w-32 ml-auto text-right">
+                                    {{ irtState.state }}
                                     <span v-if="irtData.temp_max !== null"> {{ irtData.temp_max }}°C</span>
                                 </span>
                                 <div :class="['w-8 h-8 rounded-full mr-10 ml-5', indicatorClass]"></div>
@@ -184,7 +225,7 @@ const displayTempResult = computed(() => {
             </div>
 
             <!-- Measurement Button -->
-            <button @click="doMeasurement" class="px-20 py-8 bg-black text-white text-3xl font-extrabold rounded-2xl shadow-xl 
+            <button @click="handleMeasurementClick" class="px-20 py-8 bg-black text-white text-3xl font-extrabold rounded-2xl shadow-xl 
                 hover:scale-110 transition-all duration-600 whitespace-nowrap text-center
                 hover:bg-blue-600">
                 {{ buttonLabel }}
