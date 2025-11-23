@@ -290,75 +290,53 @@ def bp_process_acceptable(socketio, ocr_triggered, measure_time, ocr_cam):
 
     return bp_emp_data, bp_msg
 
-def bp_controller(socketio: SocketIO,
-                  measure_time: str,
-                  ocr_cam: int,
-                  usb_port: str) -> Dict[str, Any]:
-    """
-    High-level controller for a single blood pressure measurement.
-
-    – Sets up GPIO & relays
-    – Starts BP device and waits for required states
-    – Runs OCR on captured frame(s)
-    – Emits bp_state logs for UI
-    – Returns a dict with keys: systolic, diastolic, pulse (optional), msg, success
-    """
-
+def bp_controller(socketio: SocketIO, measure_time, ocr_cam, usb_port):
     info("START MEASUREMENT: BLOOD PRESSURE")
-    socketio.emit('bp_state', {'state': 'Init GPIO'})
 
-    # Pins for relay control – adjust if you use different pins
-    RELAY_START_PIN = 17
-    RELAY_STOP_PIN = 18
+    RELAY_1 = 17
+    RELAY_2 = 18
 
-    bp_data: Dict[str, Any] = {
-        "systolic": None,
-        "diastolic": None,
-        "pulse": None,
-        "msg": "Unknown",
+    # default result structure
+    bp_data = {
+        "systolic": 0,
+        "diastolic": 0,
+        "pulse": 0,
+        "msg": "Incompleted",
         "success": False,
     }
 
     try:
-        # 1) GPIO setup
-        bp_gpio_setup(socketio, RELAY_START_PIN, RELAY_STOP_PIN)
-        socketio.emit('bp_state', {'state': 'Waiting BP Device'})
+        # --- GPIO setup ---
+        try:
+            bp_gpio_setup(socketio, RELAY_1, RELAY_2)
+        except Exception as e:
+            # This is where your "Cannot determine SOC peripheral base address" happens
+            error(f"BP MEASUREMENT ERROR: {e}")
+            socketio.emit('bp_state', {
+                'state': 'GPIO Error – cannot control relay',
+            })
+            # Return gracefully without touching more GPIO
+            bp_data["msg"] = f"GPIO Error: {e}"
+            bp_data["success"] = False
+            return bp_data
 
-        # 2) Drive the BP device until it reaches the correct status sequence
-        ocr_triggered = bp_control(socketio, usb_port)   # True/False
+        # --- Serial & state control ---
+        ocr_triggered = bp_control(socketio, usb_port)
 
-        # 3) If sequence OK, run OCR & check acceptability
-        socketio.emit('bp_state', {'state': 'Processing OCR'})
-        bp_emp_data, bp_msg = bp_process_acceptable(
-            socketio=socketio,
-            ocr_triggered=ocr_triggered,
-            measure_time=measure_time,
-            ocr_cam=ocr_cam
+        # --- OCR + check acceptable range ---
+        bp_result, bp_msg = bp_process_acceptable(
+            socketio, ocr_triggered, measure_time, ocr_cam
         )
-
-        # bp_emp_data is expected to contain at least systolic, diastolic, maybe pulse
-        bp_data.update(bp_emp_data)
+        bp_data.update(bp_result)
         bp_data["msg"] = bp_msg
-        bp_data["success"] = bool(ocr_triggered and bp_emp_data)
+        bp_data["success"] = (bp_msg == "Completed")
 
-        if bp_data["success"]:
-            info(f"BLOOD PRESSURE STATUS: OK – {bp_data}")
-            socketio.emit('bp_state', {'state': 'Completed'})
-        else:
-            error("BLOOD PRESSURE STATUS: CANNOT DETECT.")
-            socketio.emit('bp_state', {'state': 'Cannot Detected!'})
-
-    except Exception as e:
-        error(f"BP MEASUREMENT ERROR: {e}")
-        bp_data["msg"] = f"Error: {e}"
-        bp_data["success"] = False
-        socketio.emit('bp_state', {'state': 'Error'})
+        return bp_data
 
     finally:
-        # 4) Always clean up GPIO
+        # Always try to cleanup GPIO, but safely
         try:
-            bp_gpio_clear(RELAY_START_PIN, RELAY_STOP_PIN)
+            bp_gpio_clear()
         except Exception as e:
-            error(f"GPIO cleanup error: {e}")
+            error(f"GPIO cleanup error during bp_controller: {e}")
 
-    return bp_data
