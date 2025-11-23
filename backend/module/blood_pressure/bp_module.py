@@ -3,7 +3,7 @@ from flask_socketio import SocketIO
 from typing import Dict, Any, Tuple
 
 import serial #type:ignore
-import RPi.GPIO as GPIO #type:ignore
+import RPi.GPIO as GPIO 
 
 import pytesseract as tess
 import cv2, time, os
@@ -209,11 +209,11 @@ def bp_ocr_reader(measure_time, ocr_cam):
     # rm_ocr_path = os.path.join(os.getcwd(), 'static', 'blood_pressure')
     # clear_and_ensure_folder(rm_ocr_path)
 
-    buffer_sys, buffer_dia = [], []
+    buffer_sys, buffer_dia , buffer_pulse= [], [], []
     start_time = time.time()
 
     picam2 = Picamera2(camera_num=ocr_cam)
-    config = picam2.create_preview_configuration(main={'format': 'RGB888', 'size': (640, 540)})
+    config = picam2.create_preview_configuration(main={'format': 'RGB888', 'size': (640, 720)})
     picam2.configure(config)
     info("PiCamera Configuation!")
     picam2.start()
