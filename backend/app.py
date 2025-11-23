@@ -1,6 +1,6 @@
 from flask import Flask, Response, jsonify
 from flask_cors import CORS
-from flask_socketio import SocketIO
+from flask_socketio import SocketIO #type: ignore
 from module.irt_thermal.irt_module import irt_detect_cam
 
 

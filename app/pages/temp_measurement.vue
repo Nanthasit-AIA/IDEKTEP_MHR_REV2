@@ -187,7 +187,7 @@ const displayTempResult = computed(() => {
             <button @click="doMeasurement" class="px-20 py-8 bg-black text-white text-3xl font-extrabold rounded-2xl shadow-xl 
                 hover:scale-110 transition-all duration-600 whitespace-nowrap text-center
                 hover:bg-blue-600">
-                {{ measuring ? "Measuring..." : "Measurement" }}
+                {{ buttonLabel }}
             </button>
         </div>
     </div>

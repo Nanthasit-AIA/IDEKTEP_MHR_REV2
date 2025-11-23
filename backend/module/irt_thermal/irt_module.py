@@ -1,14 +1,14 @@
 import os
 import sys
 import time
-import serial
-import cv2
-import numpy as np
-import matplotlib.pyplot as plt 
+import serial #type: ignore
+import cv2 #type: ignore
+import numpy as np #type: ignore
+import matplotlib.pyplot as plt #type: ignore
 
 from logging import info, error
-from flask_socketio import SocketIO
-from picamera2 import Picamera2  
+from flask_socketio import SocketIO #type: ignore
+from picamera2 import Picamera2  #type: ignore
 
 from utils import clear_and_ensure_folder, calculate_centered_roi
 
@@ -16,8 +16,7 @@ np.set_printoptions(threshold=sys.maxsize)
 
 # ------------- SERIAL & PROTOCOL HELPERS ------------- #
 
-def initialize_serial(usb_port: str) -> serial.Serial:
-    """Initialize and return a serial connection to the IR sensor."""
+def initialize_serial(usb_port):
     try:
         connection = serial.Serial(
             port=usb_port,
@@ -25,53 +24,44 @@ def initialize_serial(usb_port: str) -> serial.Serial:
             parity=serial.PARITY_NONE,
             stopbits=serial.STOPBITS_ONE,
             bytesize=serial.EIGHTBITS,
-            timeout=1,
+            timeout=1
         )
         info(f"Serial connection initialized on {usb_port}")
         return connection
     except serial.SerialException as e:
         error(f"Failed to initialize serial connection on {usb_port}: {e}")
         raise
-
-
-def build_request(start_address: int, num_registers: int) -> bytearray:
-    """Build request frame for the IR sensor."""
+    
+def build_request(start_address, num_registers):
+    # Validate input ranges
     if not (0 <= start_address <= 259):
         raise ValueError(f"start_address must be in the range 0–259. Got {start_address}.")
     if not (1 <= num_registers <= 259):
         raise ValueError(f"num_registers must be in the range 1–259. Got {num_registers}.")
-
+    
+    # Construct the request frame
     request = bytearray()
-    request.append(0x11)  # START
+    request.append(0x11)  # START byte
 
-    # Start address
+    # Start Address (2 bytes)
     request.append((start_address >> 8) & 0xFF)  # MSB
     request.append(start_address & 0xFF)         # LSB
 
-    # Number of registers
+    # Number of Registers (2 bytes)
     request.append((num_registers >> 8) & 0xFF)  # MSB
     request.append(num_registers & 0xFF)         # LSB
 
-    request.append(0x98)  # END
+    request.append(0x98)  # END byte
 
-    info(f"Request frame: {request}")
+    # Log the constructed request
+    # info(f"Request: {request.hex()}")  # Log as a hex string for readability
+    info(f"Request: {request}")  # Log as a hex string for readability
     return request
 
-
-def parse_response_data(data: bytes) -> np.ndarray:
-    """
-    Parse raw bytes from the sensor to a 16x16 matrix.
-    Assumes:
-        - First 2 bytes: START
-        - Last 2 bytes: END
-        - Middle: 16x16 temperature values (2 bytes each)
-    """
+def parse_response_data(data):
     data_bytes = list(data)
 
-    if len(data_bytes) < 4:
-        raise ValueError(f"Response too short: {len(data_bytes)} bytes")
-
-    # START
+    # Extract START bytes
     start_msb = data_bytes[0]
     start_lsb = data_bytes[1]
     start_value = (start_msb << 8) | start_lsb
@@ -85,53 +75,33 @@ def parse_response_data(data: bytes) -> np.ndarray:
         temp_data.append(round(temperature * 0.1, 2))
         index += 2
 
-    # END
+    # Extract END bytes
     end_msb = data_bytes[-2]
     end_lsb = data_bytes[-1]
     end_value = (end_msb << 8) | end_lsb
 
     response_list = [start_value] + temp_data + [end_value]
 
-    # Ensure exactly 16x16
     if len(response_list) > 256:
-        response_list = response_list[:256]
-    elif len(response_list) < 256:
-        # pad with last value if short
-        response_list += [response_list[-1]] * (256 - len(response_list))
+        response_list = response_list[:256]  # Truncate if there's excess data
 
     response_matrix = np.array(response_list).reshape(16, 16)
     return response_matrix
 
+def extract_temp_data(data):
+    flattened_data = np.array(data).flatten()
 
-def extract_temp_data(data: np.ndarray) -> np.ndarray:
-    """
-    Clean / adjust temperature matrix.
-    Original logic: find value 5784.0, replace with mean of neighbors.
-    Now we make it safer.
-    """
-    flattened = np.array(data, dtype=float).flatten()
+    index_5784 = np.where(flattened_data == 5784.0)[0][0]
+    values = [data[0][1], data[1][0], data[1][1]]
+    mean_value = round(sum(values) / len(values), 1)
 
-    indices = np.where(flattened == 5784.0)[0]
-    if indices.size > 0:
-        idx = indices[0]
-        # You used three fixed neighbors before; keep the idea but safe:
-        neighbors = []
+    flattened_data[index_5784] = mean_value
 
-        # Example: use first three actual valid cells (simplify)
-        neighbors.extend(data[0, 1:3])
-        neighbors.append(data[1, 0])
-
-        mean_value = round(float(np.mean(neighbors)), 1)
-        flattened[idx] = mean_value
-
-    temperature_matrix = flattened.reshape((16, 16))
+    temperature_matrix = flattened_data.reshape((16, 16))
     return temperature_matrix
 
-
-# ------------- VISION / HEATMAP HELPERS ------------- #
-
-def get_center_frame(frame: np.ndarray, roi_size: int = 350):
-    """Calculate centered ROI within frame."""
+def get_center_frame(frame, roi_size=350):
+    # This function calculates the ROI (Region of Interest) center
     height, width, _ = frame.shape
     center_x, center_y = width // 2, height // 2
     x_start = max(0, center_x - roi_size // 2)
@@ -140,92 +110,95 @@ def get_center_frame(frame: np.ndarray, roi_size: int = 350):
     y_end = min(height, center_y + roi_size // 2)
     return (center_x, center_y), (x_start, y_start, x_end, y_end)
 
-
-def save_image(region: np.ndarray, filename: str) -> None:
+def save_image(region, filename):
     cv2.imwrite(filename, region)
 
+def ir_heatmap(frame, data):
+    # Normalize data to the range [0, 1] and invert it for the colormap
+    data_normalized = (data - np.min(data)) / (np.max(data) - np.min(data))
+    data_normalized = 1 - data_normalized
 
-def ir_heatmap(frame: np.ndarray, data: np.ndarray) -> np.ndarray:
-    """Generate overlay heatmap for a 16x16 temperature matrix on top of the frame."""
-    # Normalize data safely
-    d_min, d_max = np.min(data), np.max(data)
-    if d_max == d_min:
-        data_normalized = np.zeros_like(data, dtype=float)
-    else:
-        data_normalized = (data - d_min) / (d_max - d_min)
-
-    data_normalized = 1 - data_normalized  # invert for colormap
-
+    # Create a heatmap using matplotlib's colormap and convert to 8-bit color
     colormap = plt.cm.jet
     heatmap = colormap(data_normalized)
     heatmap = (heatmap[:, :, :3] * 255).astype(np.uint8)
 
+    # Resize the heatmap to match the frame dimensions
     height, width, _ = frame.shape
     heatmap_resized = cv2.resize(heatmap, (width, height), interpolation=cv2.INTER_LINEAR)
+    
+    # Optional: Define a Region of Interest (ROI) (remove this if you don't need ROI)
+    # center, (x_start, y_start, x_end, y_end) = get_center_frame(frame, roi_size=350)
+    # cv2.rectangle(frame, (x_start, y_start), (x_end, y_end), (255, 255, 255), 2)
 
+    # Blend the original frame with the resized heatmap
     blended = cv2.addWeighted(frame, 0.5, heatmap_resized, 0.5, 0)
 
-    # Draw numeric values
+    # Add temperature values to the heatmap
     offset_pixel = 4
-    grid_size = 16
+    grid_size = 16  # Assuming data is 16x16
     cell_width = width // grid_size
     cell_height = height // grid_size
     font = cv2.FONT_HERSHEY_SIMPLEX
     font_scale = 0.25
     font_thickness = 1
-    text_color = (255, 255, 255)
+    text_color = (255, 255, 255)  # White text for visibility
 
     for i in range(offset_pixel, grid_size + offset_pixel):
         for j in range(offset_pixel, grid_size + offset_pixel):
-            val = data[i - offset_pixel, j - offset_pixel]
-            temp_value = f"{val:.1f}"
+            temp_value = f"{data[i-offset_pixel, j-offset_pixel]:.1f}"  # Format temperature values
             x = j * cell_width + cell_width // 4
             y = i * cell_height + cell_height // 2
             cv2.putText(blended, temp_value, (x - 5, y), font, font_scale, text_color, font_thickness, cv2.LINE_AA)
 
     return blended
 
-
-def read_temperature(serial_port: serial.Serial):
-    """Send request → read response → return (temp_matrix, raw_matrix)."""
+def read_temperature(serial_port):
+    # start_address = 0
+    # num_registers = 259
+    
     start_address = 1
     num_registers = 256
-    num_of_byte = (num_registers * 2) + 4
+    num_of_byte = (num_registers*2) + 4
+    temp_matrix = None
 
     try:
+        # Build the request packet
         request_packet = build_request(start_address, num_registers)
-        serial_port.write(request_packet)
+        serial_port.write(request_packet)  # Send the request
 
+        # Read the response from the sensor
         response = serial_port.read(num_of_byte)
+        # info(f"Response: {response}")
 
-        if not response:
-            info("No response from serial port.")
-            time.sleep(0.1)
-            return None, None
+        # Check if the response is valid
+        if response is not None:
+            try:
+                info(f"Debug: {len(response)} >= 4 {len(response) >= 4}, {response[0]} == 22 {response[0] == 22}, {response[1]} == 152 {response[1] == 152}, {response[-2]} == 26 {response[-2] == 26}, {response[-1]} == 156 {response[-1] == 156}")
 
-        info(
-            f"Debug: len={len(response)}, "
-            f"start ok={len(response) >= 4 and response[0] == 22 and response[1] == 152}, "
-            f"end ok={len(response) >= 4 and response[-2] == 26 and response[-1] == 156}"
-        )
+                # Validate response length and markers
+                if len(response) >= 4 and response[0] == 22 and response[1] == 152 and response[-2] == 26 and response[-1] == 156:
+                    # Parse the response and extract temperature data
+                    response = parse_response_data(response)
+                    temp_matrix = extract_temp_data(response)
+                    
+                # Wait for at least 100ms before the next request
+                time.sleep(0.1)  # Ensure minimum delay between requests
+                
+                return temp_matrix, response
+                
+            except Exception as parse_error:
+                print(f"Error while parsing response data: {parse_error}")
+        else:
+            print("Error: No response received from the serial port.")
 
-        if len(response) >= 4 and response[0] == 22 and response[1] == 152 and response[-2] == 26 and response[-1] == 156:
-            parsed = parse_response_data(response)
-            temp_matrix = extract_temp_data(parsed)
-            time.sleep(0.1)
-            return temp_matrix, parsed
-
-        info("Response markers invalid.")
+        # Wait for at least 100ms before the next request if there's no response
         time.sleep(0.1)
-        return None, None
 
     except serial.SerialException as e:
-        error(f"Serial communication error: {e}")
+        print(f"Serial communication error: {e}")
     except Exception as e:
-        error(f"Unexpected error in read_temperature: {e}")
-
-    time.sleep(0.1)
-    return None, None
+        print(f"Unexpected error in temperature reading thread: {e}")
 
 
 # ------------- MAIN DETECTOR / STREAM FUNCTION ------------- #
@@ -361,6 +334,11 @@ def irt_detect_cam(socketio: SocketIO, face_cam: int, usb_port: str, temp_offset
                 })
 
                 info(f"Final Temperature Data: {temp_data_result}")
+                if last_heatmap is not None:
+                    image_rel_path = '/static/irt_image/heatmap_images.png'
+                    # image_abs_path = os.path.join(os.getcwd(), 'static', 'irt_image', 'heatmap_images.png')
+                    # Ensure folder exists (see 2.2 below)
+                    socketio.emit('irt_result', {'image_url': image_rel_path})
                 # publish_run(temp_data_result)  # PUBLISH MHR if needed
 
                 socketio.emit('irt_state', {'state': 'Complete'})
