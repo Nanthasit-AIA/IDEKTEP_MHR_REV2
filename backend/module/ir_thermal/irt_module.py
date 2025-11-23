@@ -338,7 +338,7 @@ def irt_detect_cam(socketio: SocketIO, face_cam: int, usb_port: str, temp_offset
                     socketio.emit('irt_data', {
                         'temp_max': temp_data_max,
                         'temp_min': temp_data_min,
-                        'temp_result': 'N/A'
+                        'temp_result': ''
                     })
 
                     last_heatmap = ir_heatmap(roi_frame, temp_matrix)

@@ -1,12 +1,112 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
+import { io, Socket } from 'socket.io-client';
 
-const router = useRouter()
+const router = useRouter();
+
 const headerMessages = [
-    "Mobility Healthcare Robot",
-    "Blood Pressure Measurement"
-]
+  'Mobility Healthcare Robot',
+  'Blood Pressure Measurement',
+];
+
+// ---- Types ----
+interface BpData {
+  systolic: number | null;
+  diastolic: number | null;
+  pulse?: number | null;
+  msg?: string;
+  success?: boolean;
+}
+
+// ---- State ----
+const drawerStatus = ref<'idle' | 'opening' | 'open' | 'closing' | 'closed'>('idle');
+const measuring = ref(false);
+const bpData = ref<BpData | null>(null);
+const bpStateText = ref<string>('Idle');
+
+let socket: Socket | null = null;
+let drawerOpenTimer: ReturnType<typeof setTimeout> | null = null;
+
+// can measure only when drawer open and not measuring
+const canMeasure = computed(() => drawerStatus.value === 'open' && !measuring.value);
+
+// ---- Lifecycle ----
+onMounted(() => {
+  socket = io('http://localhost:5000');
+
+  socket.on('connect', () => {
+    console.log('Connected to BP Socket.IO');
+
+    // 1) After navigating to /bp_measurement, wait 2s then open drawer
+    drawerOpenTimer = setTimeout(() => {
+      socket?.emit('drawer_control', { data: 'med_1DrawerOpen' });
+      drawerStatus.value = 'opening';
+      bpStateText.value = 'Opening Drawer...';
+    }, 2000);
+  });
+
+  // Drawer status from backend (trigger_drawer in app.py)
+  socket.on('mhr_status', (payload: { status: string }) => {
+    if (payload.status === '1DrawerOpen') {
+      drawerStatus.value = 'open';
+      bpStateText.value = 'Drawer Open - Ready to Measure';
+    } else if (payload.status === '1DrawerClose') {
+      drawerStatus.value = 'closed';
+      bpStateText.value = 'Drawer Closed';
+    }
+  });
+
+  // Optional: progress messages from bp_module.bp_controller
+  socket.on('bp_state', (payload: { state: string }) => {
+    bpStateText.value = payload.state;
+  });
+});
+
+onUnmounted(() => {
+  if (drawerOpenTimer) {
+    clearTimeout(drawerOpenTimer);
+    drawerOpenTimer = null;
+  }
+  if (socket) {
+    socket.disconnect();
+    socket = null;
+  }
+});
+
+// ---- Actions ----
+const handleMeasurementClick = async () => {
+  if (!canMeasure.value) return;
+
+  measuring.value = true;
+  bpData.value = null;
+  bpStateText.value = 'Measuring...';
+
+  try {
+    // 2) Call backend BP API (bp_controller)
+    const res = await $fetch<BpData>('http://localhost:5000/api/bp_measurement', {
+      method: 'POST',
+      body: {}, // add extra params later if needed
+    });
+
+    bpData.value = res;
+    bpStateText.value = res.msg ?? (res.success ? 'Measurement Completed' : 'Measurement Failed');
+
+    // 3) After measurement complete, close drawer
+    socket?.emit('drawer_control', { data: 'med_1DrawerClose' });
+    drawerStatus.value = 'closing';
+  } catch (err) {
+    console.error(err);
+    bpStateText.value = 'Measurement Error';
+  } finally {
+    measuring.value = false;
+  }
+};
+
+// Optional: navigate to other page (you already had this button)
+const goToAnalMeasurement = () => {
+  router.push('/anal_measurement');
+};
 </script>
 
 <template>
@@ -45,29 +145,29 @@ const headerMessages = [
                                 <span class="text-white text-2xl font-bold ml-5">
                                     Blood Pressure
                                 </span>
-                                <span class="text-white text-l font-sm w-32 ml-auto">blood pressure</span>
-                                <div :class="['w-8 h-8 rounded-full bg-white mr-10']"></div>
+                                <span class="text-white text-l font-sm w-32 ml-auto text-right">{{ bpStateText }}</span>
+                                <div :class="['w-8 h-8 rounded-full bg-white mr-10 ml-5']"></div>
                             </div>
                             <div class="absolute w-[90%] top-30 left-1/2 transform -translate-x-1/2 bg-black rounded-2xl py-6 mt-6 flex justify-between items-center">
                                 <div class="flex flex-col leading-tight">
                                 <span class="text-white text-7xl ml-10 font-black">SYS</span>
                                 <span class="text-white text-sm ml-10 mt-3">mmHg</span>
                                 </div>
-                                <span class="text-white text-8xl font-black mr-20">120</span>
+                                <span class="text-white text-8xl font-black mr-20">{{ bpData?.systolic ?? '--' }}</span>
                             </div>
                             <div class="absolute w-[90%] top-70 left-1/2 transform -translate-x-1/2 bg-black rounded-2xl py-6 mt-6 flex justify-between items-center">
                                 <div class="flex flex-col leading-tight">
                                 <span class="text-white text-7xl ml-10 font-black">DIA</span>
                                 <span class="text-white text-sm ml-10 mt-3">mmHg</span>
                                 </div>
-                                <span class="text-white text-8xl font-black mr-20">80</span>
+                                <span class="text-white text-8xl font-black mr-20">{{ bpData?.diastolic ?? '--' }}</span>
                             </div>
                             <div class="absolute w-[90%] top-110 left-1/2 transform -translate-x-1/2 bg-black rounded-2xl py-6 mt-6 flex justify-between items-center">
                                 <div class="flex flex-col leading-tight">
                                 <span class="text-white text-7xl ml-10 font-black">PULSE</span>
                                 <span class="text-white text-sm ml-10 mt-3">BPM</span>
                                 </div>
-                                <span class="text-white text-8xl font-black mr-20">80</span>
+                                <span class="text-white text-8xl font-black mr-20">{{ bpData?.pulse ?? '--' }}</span>
                             </div>
                         </div>
                     </div>
@@ -77,10 +177,15 @@ const headerMessages = [
 
             <!-- Measurement Button -->
             <button
-                class="px-20 py-8 bg-black text-white text-3xl font-extrabold rounded-2xl shadow-xl 
-                hover:scale-110 transition-all duration-600 whitespace-nowrap text-center
-                hover:bg-blue-600" >
-                Measurement
+                @click="handleMeasurementClick"
+                :disabled="!canMeasure"
+                class="px-20 py-8 text-3xl font-extrabold rounded-2xl shadow-xl 
+                    hover:scale-110 transition-all duration-600 whitespace-nowrap text-center"
+                :class="canMeasure
+                ? 'bg-black text-white hover:bg-blue-600'
+                : 'bg-gray-400 text-gray-700 cursor-not-allowed'"
+            >
+                {{ measuring ? 'Measuring…' : 'Measurement' }}
             </button>
         </div>
     </div>
