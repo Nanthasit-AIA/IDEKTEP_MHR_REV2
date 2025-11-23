@@ -1,14 +1,14 @@
 import os
 import sys
 import time
-import serial #type: ignore
-import cv2 #type: ignore
-import numpy as np #type: ignore
-import matplotlib.pyplot as plt #type: ignore
+import serial
+import cv2 
+import numpy as np
+import matplotlib.pyplot as plt 
 
 from logging import info, error
-from flask_socketio import SocketIO #type: ignore
-from picamera2 import Picamera2  #type: ignore
+from flask_socketio import SocketIO 
+from picamera2 import Picamera2  
 
 from utils import clear_and_ensure_folder, calculate_centered_roi
 
@@ -239,7 +239,7 @@ def irt_detect_cam(socketio: SocketIO, face_cam: int, usb_port: str, temp_offset
         screen_width, screen_height = 640, 480
         picam2 = Picamera2(camera_num=face_cam)
 
-        socketio.emit('irt_state', {'state': 'Open Camera Successfully'})
+        socketio.emit('irt_state', {'state': 'Camera open'})
         time.sleep(0.5)
 
         try:
@@ -290,9 +290,9 @@ def irt_detect_cam(socketio: SocketIO, face_cam: int, usb_port: str, temp_offset
             )
 
             if len(faces) == 0:
-                socketio.emit('irt_state', {'state': 'Ready'})
+                socketio.emit('irt_state', {'state': 'Face Detect'})
             else:
-                socketio.emit('irt_state', {'state': 'Measuring'})
+                socketio.emit('irt_state', {'state': 'Meas.'})
 
                 for (x, y, w, h) in faces:
                     cv2.rectangle(roi_frame, (x, y), (x + w, y + h), (0, 0, 255), 2)
@@ -335,7 +335,11 @@ def irt_detect_cam(socketio: SocketIO, face_cam: int, usb_port: str, temp_offset
 
                 info(f"Final Temperature Data: {temp_data_result}")
                 if last_heatmap is not None:
-                    image_rel_path = '/static/irt_image/heatmap_images.png'
+                    save_image(
+                        frame,
+                        os.path.join(os.getcwd(), 'static', 'irt_image', 'irt_images.png')
+                    )
+                    image_rel_path = '/static/irt_image/irt_images.png'
                     # image_abs_path = os.path.join(os.getcwd(), 'static', 'irt_image', 'heatmap_images.png')
                     # Ensure folder exists (see 2.2 below)
                     socketio.emit('irt_result', {'image_url': image_rel_path})

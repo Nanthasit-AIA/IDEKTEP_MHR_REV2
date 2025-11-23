@@ -168,15 +168,15 @@ const displayTempResult = computed(() => {
                             </template>
 
                             <!-- Temperature Box -->
-                            <div class="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black rounded-2xl px- py-6 flex items-center justify-between w-[90%]"
+                            <div class="absolute bottom-3 left-1/2 transform -translate-x-1/2 bg-black rounded-2xl px- py-6 flex items-center justify-between w-[90%]"
                                 style="min-width: 60%;">
-                                <span class="text-white text-2xl font-bold ml-5">
+                                <span class="text-white text-2xl font-bold ml-10">
                                     Temperature : {{ displayTempResult }} °C
                                 </span>
-                                <span class="text-white text-l font-sm w-32 ml-auto">{{ irtData.temp_context }}
+                                <span class="text-white text-l font-sm w-32 ml-auto text-right">{{ irtState.state }}
                                     <span v-if="irtData.temp_max !== null"> {{ irtData.temp_max }}°C</span>
                                 </span>
-                                <div :class="['w-8 h-8 rounded-full mr-10', indicatorClass]"></div>
+                                <div :class="['w-8 h-8 rounded-full mr-10 ml-5', indicatorClass]"></div>
                             </div>
                         </div>
                     </div>
