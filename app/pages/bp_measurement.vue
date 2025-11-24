@@ -31,6 +31,8 @@ const bpStateText = ref<string>('Idle');
 
 const bpState = ref<string>('Idle');
 const bpIndicator = ref<string>('i');
+const measurementDone = ref(false);   // 🔹 NEW
+
 let socket: Socket | null = null;
 let drawerOpenTimer: ReturnType<typeof setTimeout> | null = null;
 const skipAutoNavigate = ref(false);
@@ -51,6 +53,7 @@ onMounted(() => {
       socket?.emit('drawer_control', { data: 'med_1DrawerOpen' });
       drawerStatus.value = 'opening';
       bpStateText.value = 'Opening Drawer...';
+      bpIndicator.value = 'm';            // 🔹 indicator = moving while drawer opens
     }, 2000);
   });
 
@@ -59,11 +62,13 @@ onMounted(() => {
     if (payload.status === '1DrawerOpen') {
       drawerStatus.value = 'open';
       bpStateText.value = 'Ready to measure';
+      bpIndicator.value = 'c';          // 🔹 drawer open & ready → green
     } 
 
     else if (payload.status === '1DrawerClose') {
       drawerStatus.value = 'closed';
       bpStateText.value = 'Drawer Closed';
+      bpIndicator.value = 'i';          // 🔹 drawer closed/idle → gray
 
       // ❌ If user clicked the Close button → DO NOT auto navigate
       if (skipAutoNavigate.value) {
@@ -87,15 +92,13 @@ onMounted(() => {
   socket.on('bp_update', (payload) => {
     if (payload.bp_state?.state) {
       bpState.value = payload.bp_state.state;
+      bpStateText.value = payload.bp_state.state;   // 🔹 sync text with bpState when available
     }
     if (payload.bp_indicator?.state) {
       bpIndicator.value = payload.bp_indicator.state;
     }
-
   });
 
-
-  
 });
 
 onUnmounted(() => {
@@ -119,6 +122,7 @@ const handleCloseDrawer = () => {
   socket?.emit('drawer_control', { data: 'med_1DrawerClose' });
   drawerStatus.value = 'closing';
   bpStateText.value = 'Closing drawer...';
+  bpIndicator.value = 'm';         // 🔹 closing drawer → moving
 };
 
 const indicatorClass = computed(() => {
@@ -130,10 +134,36 @@ const indicatorClass = computed(() => {
   }
 });
 
+const canClickMainButton = computed(() => {
+  if (measuring.value) return false;
+
+  // Can click when:
+  // - ready to measure (drawer open), OR
+  // - measurement done and drawer already closed → go to next page
+  return canMeasure.value || (measurementDone.value && drawerStatus.value === 'closed');
+});
+
+const mainButtonLabel = computed(() => {
+  if (measuring.value) return 'Measuring…';
+  if (measurementDone.value && drawerStatus.value === 'closed') return 'View Result';
+  return 'Measurement';
+});
+
 const handleMeasurementClick = async () => {
+  // 🔹 If measurement already done & drawer is closed → go to /anal_measurement
+  if (measurementDone.value && drawerStatus.value === 'closed') {
+    if (autoNavigateTimeout) {
+      clearTimeout(autoNavigateTimeout);
+      autoNavigateTimeout = null;
+    }
+    router.push('/anal_measurement');
+    return;
+  }
+
   if (!canMeasure.value) return;
 
   measuring.value = true;
+  measurementDone.value = false;
   bpData.value = null;
   bpStateText.value = 'Measuring...';
 
@@ -147,16 +177,23 @@ const handleMeasurementClick = async () => {
     bpData.value = res;
     bpStateText.value = res.msg ?? (res.success ? 'Measurement Completed' : 'Measurement Failed');
 
+    if (res.success) {
+      measurementDone.value = true;   // 🔹 mark as complete
+    }
+
     // 3) After measurement complete, close drawer
     socket?.emit('drawer_control', { data: 'med_1DrawerClose' });
     drawerStatus.value = 'closing';
   } catch (err) {
     console.error(err);
     bpStateText.value = 'Measurement Error';
+    measurementDone.value = false;
   } finally {
     measuring.value = false;
   }
 };
+
+
 
 // Optional: navigate to other page (you already had this button)
 const goToAnalMeasurement = () => {
@@ -190,9 +227,8 @@ const goToAnalMeasurement = () => {
                     </button>
                     <button
                       @click="handleCloseDrawer"
-                      class="absolute flex items-center right-0 top-30 justify-center w-32 h-16 bg-gray-0 rounded-full hover:bg-gray-400 transition"
+                      class="absolute flex items-center right-0 top-40 justify-center w-32 h-16 bg-gray-0 rounded-full hover:bg-gray-400 transition"
                     >
-                      Close Drawer
                     </button>
 
                     <!--  Frame  -->
@@ -209,14 +245,14 @@ const goToAnalMeasurement = () => {
                                 <span class="text-white text-l font-sm w-32 ml-auto text-right">{{ bpStateText }}</span>
                                 <div :class="['w-8 h-8 rounded-full bg-white mr-10 ml-5', indicatorClass]"></div>
                             </div>
-                            <div class="absolute w-[90%] top-30 left-1/2 transform -translate-x-1/2 bg-black rounded-2xl py-6 mt-6 flex justify-between items-center">
+                            <div class="absolute w-[90%] top-30 left-1/2 transform -translate-x-1/2 bg-black rounded-2xl py-8 mt-6 flex justify-between items-center">
                                 <div class="flex flex-col leading-tight">
                                 <span class="text-white text-7xl ml-10 font-black">SYS</span>
                                 <span class="text-white text-sm ml-10 mt-3">mmHg</span>
                                 </div>
                                 <span class="text-white text-8xl font-black mr-20">{{ bpData?.systolic ?? '--' }}</span>
                             </div>
-                            <div class="absolute w-[90%] top-70 left-1/2 transform -translate-x-1/2 bg-black rounded-2xl py-6 mt-6 flex justify-between items-center">
+                            <div class="absolute w-[90%] top-70 left-1/2 transform -translate-x-1/2 bg-black rounded-2xl py-8 mt-6 flex justify-between items-center">
                                 <div class="flex flex-col leading-tight">
                                 <span class="text-white text-7xl ml-10 font-black">DIA</span>
                                 <span class="text-white text-sm ml-10 mt-3">mmHg</span>
@@ -238,16 +274,17 @@ const goToAnalMeasurement = () => {
 
             <!-- Measurement Button -->
             <button
-                @click="handleMeasurementClick"
-                :disabled="!canMeasure"
-                class="px-20 py-8 text-3xl font-extrabold rounded-2xl shadow-xl 
+              @click="handleMeasurementClick"
+              :disabled="!canClickMainButton"
+              class="px-20 py-8 text-3xl font-extrabold rounded-2xl shadow-xl 
                     hover:scale-110 transition-all duration-600 whitespace-nowrap text-center"
-                :class="canMeasure
+              :class="canClickMainButton
                 ? 'bg-black text-white hover:bg-blue-600'
                 : 'bg-gray-400 text-gray-700 cursor-not-allowed'"
             >
-                {{ measuring ? 'Measuring…' : 'Measurement' }}
+              {{ mainButtonLabel }}
             </button>
+
         </div>
     </div>
 </template>
