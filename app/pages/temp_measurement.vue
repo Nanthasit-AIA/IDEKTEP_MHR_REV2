@@ -87,8 +87,27 @@ onMounted(() => {
         }
 
         // ✅ auto-stop video and schedule navigation when complete
+        // ✅ auto-stop video and schedule navigation when complete
         if (state === "Complete") {
             videoActive.value = false;
+
+            // 🔹 store final temperature for wellness summary
+            const rawTemp = irtData.value.temp_result;
+            let storedTemp = "";
+
+            if (typeof rawTemp === "number") {
+                if (Number.isFinite(rawTemp) && rawTemp > 0) {
+                    storedTemp = rawTemp.toString();
+                }
+            } else if (typeof rawTemp === "string") {
+                const num = Number(rawTemp);
+                if (Number.isFinite(num) && num > 0) {
+                    storedTemp = rawTemp;
+                }
+            }
+
+            // if error, null, NaN, or 0 → keep as empty (will show "--")
+            sessionStorage.setItem("wellness_temp", storedTemp);
 
             if (!autoNavigateTimeout) {
                 autoNavigateTimeout = setTimeout(() => {

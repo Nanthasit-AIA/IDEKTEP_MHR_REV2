@@ -180,6 +180,16 @@ const handleMeasurementClick = async () => {
     if (res.success) {
       measurementDone.value = true;   // 🔹 mark as complete
     }
+        // 🔹 store BP values for wellness summary (0 / invalid / null → "--")
+    const normalize = (val: number | null | undefined): string => {
+      if (val == null) return "";
+      if (!Number.isFinite(val) || val <= 0) return "";
+      return String(val);
+    };
+
+    sessionStorage.setItem("wellness_sys",   normalize(res.systolic));
+    sessionStorage.setItem("wellness_dia",   normalize(res.diastolic));
+    sessionStorage.setItem("wellness_pulse", normalize(res.pulse));
 
     // 3) After measurement complete, close drawer
     socket?.emit('drawer_control', { data: 'med_1DrawerClose' });
@@ -242,17 +252,17 @@ const goToAnalMeasurement = () => {
                                 <span class="text-white text-2xl font-bold ml-5">
                                     Blood Pressure
                                 </span>
-                                <span class="text-white text-l font-sm w-32 ml-auto text-right">{{ bpStateText }}</span>
+                                <span class="text-white text-l font-sm w-56 ml-auto text-right">{{ bpStateText }}</span>
                                 <div :class="['w-8 h-8 rounded-full bg-white mr-10 ml-5', indicatorClass]"></div>
                             </div>
-                            <div class="absolute w-[90%] top-30 left-1/2 transform -translate-x-1/2 bg-black rounded-2xl py-8 mt-6 flex justify-between items-center">
+                            <div class="absolute w-[90%] top-40 left-1/2 transform -translate-x-1/2 bg-black rounded-2xl py-8 mt-6 flex justify-between items-center">
                                 <div class="flex flex-col leading-tight">
                                 <span class="text-white text-7xl ml-10 font-black">SYS</span>
                                 <span class="text-white text-sm ml-10 mt-3">mmHg</span>
                                 </div>
                                 <span class="text-white text-8xl font-black mr-20">{{ bpData?.systolic ?? '--' }}</span>
                             </div>
-                            <div class="absolute w-[90%] top-70 left-1/2 transform -translate-x-1/2 bg-black rounded-2xl py-8 mt-6 flex justify-between items-center">
+                            <div class="absolute w-[90%] top-90 left-1/2 transform -translate-x-1/2 bg-black rounded-2xl py-8 mt-6 flex justify-between items-center">
                                 <div class="flex flex-col leading-tight">
                                 <span class="text-white text-7xl ml-10 font-black">DIA</span>
                                 <span class="text-white text-sm ml-10 mt-3">mmHg</span>
