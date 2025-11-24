@@ -213,7 +213,7 @@ def bp_ocr_reader(measure_time, ocr_cam):
     start_time = time.time()
 
     picam2 = Picamera2(camera_num=ocr_cam)
-    config = picam2.create_preview_configuration(main={'format': 'RGB888', 'size': (640, 720)})
+    config = picam2.create_preview_configuration(main={'format': 'RGB888', 'size': (640, 480)})
     picam2.configure(config)
     info("PiCamera Configuation!")
     picam2.start()
