@@ -19,14 +19,22 @@ interface BpData {
   success?: boolean;
 }
 
+interface bpIndicator{
+    state: string;
+}
 // ---- State ----
+
 const drawerStatus = ref<'idle' | 'opening' | 'open' | 'closing' | 'closed'>('idle');
 const measuring = ref(false);
 const bpData = ref<BpData | null>(null);
 const bpStateText = ref<string>('Idle');
 
+const bpState = ref<string>('Idle');
+const bpIndicator = ref<string>('i');
 let socket: Socket | null = null;
 let drawerOpenTimer: ReturnType<typeof setTimeout> | null = null;
+const skipAutoNavigate = ref(false);
+let autoNavigateTimeout: ReturnType<typeof setTimeout> | null = null;
 
 // can measure only when drawer open and not measuring
 const canMeasure = computed(() => drawerStatus.value === 'open' && !measuring.value);
@@ -50,23 +58,54 @@ onMounted(() => {
   socket.on('mhr_status', (payload: { status: string }) => {
     if (payload.status === '1DrawerOpen') {
       drawerStatus.value = 'open';
-      bpStateText.value = 'Drawer Open - Ready to Measure';
-    } else if (payload.status === '1DrawerClose') {
+      bpStateText.value = 'Ready to measure';
+    } 
+
+    else if (payload.status === '1DrawerClose') {
       drawerStatus.value = 'closed';
       bpStateText.value = 'Drawer Closed';
+
+      // ❌ If user clicked the Close button → DO NOT auto navigate
+      if (skipAutoNavigate.value) {
+        console.log("Drawer closed manually → no navigation.");
+        skipAutoNavigate.value = false;  // reset
+        return;
+      }
+
+      // ✅ Auto navigation ONLY when closed by system
+      if (!autoNavigateTimeout) {
+        autoNavigateTimeout = setTimeout(() => {
+          router.push('/anal_measurement');
+          autoNavigateTimeout = null;
+        }, 5000);
+      }
     }
   });
 
+
   // Optional: progress messages from bp_module.bp_controller
-  socket.on('bp_state', (payload: { state: string }) => {
-    bpStateText.value = payload.state;
+  socket.on('bp_update', (payload) => {
+    if (payload.bp_state?.state) {
+      bpState.value = payload.bp_state.state;
+    }
+    if (payload.bp_indicator?.state) {
+      bpIndicator.value = payload.bp_indicator.state;
+    }
+
   });
+
+
+  
 });
 
 onUnmounted(() => {
   if (drawerOpenTimer) {
     clearTimeout(drawerOpenTimer);
     drawerOpenTimer = null;
+  }
+  if (autoNavigateTimeout) {
+    clearTimeout(autoNavigateTimeout);
+    autoNavigateTimeout = null;
   }
   if (socket) {
     socket.disconnect();
@@ -75,6 +114,22 @@ onUnmounted(() => {
 });
 
 // ---- Actions ----
+const handleCloseDrawer = () => {
+  skipAutoNavigate.value = true;   // ← prevent navigation
+  socket?.emit('drawer_control', { data: 'med_1DrawerClose' });
+  drawerStatus.value = 'closing';
+  bpStateText.value = 'Closing drawer...';
+};
+
+const indicatorClass = computed(() => {
+  switch (bpIndicator.value) {
+    case 'c': return 'bg-green-400';
+    case 'm': return 'bg-yellow-400 animate-pulse';
+    case 'e': return 'bg-red-500';
+    default: return 'bg-gray-300';
+  }
+});
+
 const handleMeasurementClick = async () => {
   if (!canMeasure.value) return;
 
@@ -133,6 +188,12 @@ const goToAnalMeasurement = () => {
                         >
 
                     </button>
+                    <button
+                      @click="handleCloseDrawer"
+                      class="absolute flex items-center right-0 top-30 justify-center w-32 h-16 bg-gray-0 rounded-full hover:bg-gray-400 transition"
+                    >
+                      Close Drawer
+                    </button>
 
                     <!--  Frame  -->
                     <div class="flex flex-col items-center justify-center">
@@ -146,7 +207,7 @@ const goToAnalMeasurement = () => {
                                     Blood Pressure
                                 </span>
                                 <span class="text-white text-l font-sm w-32 ml-auto text-right">{{ bpStateText }}</span>
-                                <div :class="['w-8 h-8 rounded-full bg-white mr-10 ml-5']"></div>
+                                <div :class="['w-8 h-8 rounded-full bg-white mr-10 ml-5', indicatorClass]"></div>
                             </div>
                             <div class="absolute w-[90%] top-30 left-1/2 transform -translate-x-1/2 bg-black rounded-2xl py-6 mt-6 flex justify-between items-center">
                                 <div class="flex flex-col leading-tight">
@@ -162,13 +223,13 @@ const goToAnalMeasurement = () => {
                                 </div>
                                 <span class="text-white text-8xl font-black mr-20">{{ bpData?.diastolic ?? '--' }}</span>
                             </div>
-                            <div class="absolute w-[90%] top-110 left-1/2 transform -translate-x-1/2 bg-black rounded-2xl py-6 mt-6 flex justify-between items-center">
+                            <!-- <div class="absolute w-[90%] top-110 left-1/2 transform -translate-x-1/2 bg-black rounded-2xl py-6 mt-6 flex justify-between items-center">
                                 <div class="flex flex-col leading-tight">
                                 <span class="text-white text-7xl ml-10 font-black">PULSE</span>
                                 <span class="text-white text-sm ml-10 mt-3">BPM</span>
                                 </div>
                                 <span class="text-white text-8xl font-black mr-20">{{ bpData?.pulse ?? '--' }}</span>
-                            </div>
+                            </div> -->
                         </div>
                     </div>
 

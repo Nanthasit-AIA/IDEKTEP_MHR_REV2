@@ -36,7 +36,10 @@ def save_image(region, filename):
 def bp_gpio_setup(socketio, RELAY_1, RELAY_2):
     try:
         info("Starting BP GPIO Configuration")
-        socketio.emit('bp_state', {'state': 'Starting BP GPIO Configuration'})
+        socketio.emit('bp_update', {
+                'bp_state': {'state': 'GPIO config'},
+                'bp_indicator': {'state': 'm'}
+        })
 
         # Ensure the GPIO is cleaned up before setting up
         # GPIO.cleanup()
@@ -44,7 +47,10 @@ def bp_gpio_setup(socketio, RELAY_1, RELAY_2):
         # Set up GPIO mode to BCM (alternatively, use GPIO.BOARD as required)
         GPIO.setmode(GPIO.BCM)
         # info("GPIO mode successfully set to BCM")
-        socketio.emit('bp_state', {'state': 'GPIO mode successfully set'})
+        socketio.emit('bp_update', {
+                'bp_state': {'state': 'GPIO setup'},
+                'bp_indicator': {'state': 'm'}
+        })
 
         # Verify that GPIO mode is set before proceeding
         # if GPIO.getmode() is None:
@@ -62,19 +68,28 @@ def bp_gpio_setup(socketio, RELAY_1, RELAY_2):
         time.sleep(1)
 
         info("BP GPIO Configuration Completed!")
-        socketio.emit('bp_state', {'state': 'BP GPIO Configuration Completed!'})
+        socketio.emit('bp_update', {
+                'bp_state': {'state': 'GPIO success'},
+                'bp_indicator': {'state': 'c'}
+        })
 
     except RuntimeError as e:
         error_message = f"RuntimeError during GPIO setup: {e}"
         error(error_message)
-        socketio.emit('bp_state', {'state': error_message})
+        socketio.emit('bp_update', {
+                'bp_state': {'state': 'GPIO runtime-error'},
+                'bp_indicator': {'state': 'e'}
+        })
         raise
 
     except Exception as e:
         # Handle unexpected exceptions
         error_message = f"Unexpected error during GPIO setup: {e}"
         error(error_message)
-        socketio.emit('bp_state', {'state': error_message})
+        socketio.emit('bp_update', {
+                'bp_state': {'state': 'GPIO config-error'},
+                'bp_indicator': {'state': 'e'}
+        })
         raise
 
 def bp_gpio_clear(RELAY_1, RELAY_2):
@@ -94,7 +109,11 @@ def relay_control(socketio, relay, RELAY_1=17, RELAY_2=18):
         GPIO.output(relay_pin, GPIO.LOW)
         time.sleep(0.5)
         GPIO.output(relay_pin, GPIO.HIGH)
-        socketio.emit('bp_state', {'state': f'Trigger GPIO {relay_pin}'})
+        socketio.emit('bp_update', {
+                'bp_state': {'state': f'Trigger GPIO {relay_pin}'},
+                'bp_indicator': {'state': 'm'}
+        })
+        
     except Exception as e:
         info(f"Error controlling relay {relay}: {e}")
 
@@ -137,12 +156,18 @@ def bp_control(socketio, usb_port):
     
     try:
         ser = initialize_serial(usb_port)
-        socketio.emit('bp_state', {'state': 'Connection..'})
+        socketio.emit('bp_update', {
+                'bp_state': {'state': 'Connection..'},
+                'bp_indicator': {'state': 'm'}
+        })
         time.sleep(0.5)
 
         if ser.is_open:
             info("Serial port is open and configured.")
-            socketio.emit('bp_state', {'state': 'Connected!'})
+            socketio.emit('bp_update', {
+                'bp_state': {'state': 'Connected!'},
+                'bp_indicator': {'state': 'c'}
+            })
             relay_control(socketio, 1)
             
             bp_states = []
@@ -151,7 +176,10 @@ def bp_control(socketio, usb_port):
                     bp_stage = receive_state(ser)
                     if bp_stage:
                         info(f"Received Stage: {bp_stage}")
-                        socketio.emit('bp_state', {'state': 'Processing..', 'msg': bp_stage})
+                        socketio.emit('bp_update', {
+                            'bp_state': {'state': 'Processing..', 'msg': bp_stage},
+                            'bp_indicator': {'state': 'm'}
+                        })
                         info(f"Debug BP Stage: {bp_stage}")
                         # socketio.emit('bp_state', {'msg_state': f'Measurement State {bp_stage}'})
                         in_process, ocr_triggered = bp_process_state(socketio, bp_stage, bp_states)
@@ -271,22 +299,35 @@ def bp_ocr_reader(measure_time, ocr_cam):
 def bp_process_acceptable(socketio, ocr_triggered, measure_time, ocr_cam):
     bp_msg = 'Incompleted'
     if ocr_triggered:
-        socketio.emit('bp_state', {'state': 'Checking Result'})
+        socketio.emit('bp_update', {
+            'bp_state': {'state': 'Checking Result'},
+            'bp_indicator': {'state': 'm'}
+        })
+        
         bp_data = bp_ocr_reader(measure_time, ocr_cam)
-        acceptable_range = {"systolic": (70, 180), "diastolic": (50, 120)}
+        acceptable_range = {"systolic": (60, 190), "diastolic": (40, 130)}
         if all(acceptable_range[key][0] <= bp_data[key] <= acceptable_range[key][1] for key in acceptable_range):
             info("SYS & DIA ARE WITHIN ACCEPT RANGE.")
             info(f"BLOOD PRESSURE STATUS : MEASUREMENT COMPLETE.")
             bp_msg = 'Completed'
-            socketio.emit('bp_state', {'state': 'Check Result Complted!'})
+            socketio.emit('bp_update', {
+                'bp_state': {'state': 'Result Completed'},
+                'bp_indicator': {'state': 'c'}
+            })
             return bp_data, bp_msg
         else:
             error("SYS & DIA ARE OUT OF ACCEPT RANGE.")
             error(f"BLOOD PRESSURE STATUS : MEASUREMENT FAILED.")
-            socketio.emit('bp_state', {'state': 'Check Result Failed!'})
+            socketio.emit('bp_update', {
+                'bp_state': {'state': 'Result Failed!'},
+                'bp_indicator': {'state': 'e'}
+            })
     else:
         error("BLOOD PRESSURE STATUS: CANNOT DETECT.")
-        socketio.emit('bp_state', {'state': 'Cannot Detected!'})
+        socketio.emit('bp_update', {
+            'bp_state': {'state': 'Cannot Detected!'},
+            'bp_indicator': {'state': 'e'}
+        })
 
     return bp_emp_data, bp_msg
 
@@ -312,8 +353,9 @@ def bp_controller(socketio: SocketIO, measure_time, ocr_cam, usb_port):
         except Exception as e:
             # This is where your "Cannot determine SOC peripheral base address" happens
             error(f"BP MEASUREMENT ERROR: {e}")
-            socketio.emit('bp_state', {
-                'state': 'GPIO Error – cannot control relay',
+            socketio.emit('bp_update', {
+                'bp_state': {'state': 'relay error'},
+                'bp_indicator': {'state': 'e'}
             })
             # Return gracefully without touching more GPIO
             bp_data["msg"] = f"GPIO Error: {e}"
