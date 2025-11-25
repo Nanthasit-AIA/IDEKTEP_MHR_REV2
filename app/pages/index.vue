@@ -9,8 +9,8 @@ const headerMessages = [
 ]
 
 const actionButtons = [
-    { label: "Face Verify", to: "/face-verify" },
-    { label: "Face Register", to: "/face-register" },
+    { label: "Face Verify", to: "/face_verify" },
+    { label: "Face Register", to: "/face_register" },
     { label: "Measurement", to: "/temp_measurement" }
 ]
 </script>

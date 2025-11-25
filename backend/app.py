@@ -8,6 +8,10 @@ from module.drawer_control.drawer_module import drawer_controller
 import time
 from logging import info, error
 from coloredlogs import install
+import os
+import csv
+from datetime import datetime
+from module.face_recognition.face_verify import stream_face_collection  # adjust import path
 
 log_format = "%(asctime)s - %(hostname)s:%(username)s:%(programname)s - %(levelname)s: %(message)s"
 install(level="info", format=log_format)
@@ -92,6 +96,81 @@ def api_bp_measurement():
 
     # bp_data already includes systolic/diastolic (and msg if you added earlier)
     return jsonify(bp_data)
+
+INFO_DIR = os.path.join("static", "information")
+INFO_CSV = os.path.join(INFO_DIR, "information.csv")
+FACEPRINTS_CSV = os.path.join(INFO_DIR, "faceprints.csv")
+
+os.makedirs(INFO_DIR, exist_ok=True)
+
+
+def generate_user_id(first_name: str, last_name: str) -> str:
+    """
+    Build ID: 2-first letters of first name + last name + time of capture.
+    Example: NA + AIAMSAARTSRI + 20251125143022
+    """
+    prefix = (first_name[:2] + last_name).upper().replace(" ", "")
+    ts = datetime.now().strftime("%Y%m%d%H%M%S")
+    return f"{prefix}_{ts}"
+
+@app.post("/api/register_information")
+def register_information():
+    """
+    Save user registration information to static/information/information.csv
+    and return generated ID.
+    Expected JSON body:
+    {
+      "title": "Mr.",
+      "first_name": "John",
+      "last_name": "Doe",
+      "additional_info": "something"
+    }
+    """
+    data = request.get_json(force=True) or {}
+
+    title = data.get("title", "").strip()
+    first_name = data.get("first_name", "").strip()
+    last_name = data.get("last_name", "").strip()
+    additional_info = data.get("additional_info", "").strip()
+
+    if not first_name or not last_name:
+        return jsonify({"error": "first_name and last_name are required"}), 400
+
+    user_id = generate_user_id(first_name, last_name)
+    created_at = datetime.now().isoformat(timespec="seconds")
+
+    # --- Save main information.csv ---
+    info_exists = os.path.exists(INFO_CSV)
+    with open(INFO_CSV, "a", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        if not info_exists:
+            writer.writerow(
+                ["id", "title", "first_name", "last_name", "additional_info", "created_at"]
+            )
+        writer.writerow([user_id, title, first_name, last_name, additional_info, created_at])
+
+    # --- Also record id in faceprints.csv (for mapping / future use) ---
+    fp_exists = os.path.exists(FACEPRINTS_CSV)
+    with open(FACEPRINTS_CSV, "a", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        if not fp_exists:
+            writer.writerow(["id"])
+        writer.writerow([user_id])
+
+    return jsonify({"id": user_id})
+
+@app.get("/face_collect_feed")
+def face_collect_feed():
+    person_id = request.args.get("id", "UNKNOWN")
+    return Response(
+        stream_face_collection(
+            socketio=socketio,
+            device_id=0,
+            img_capture=10,
+            person_name=person_id
+        ),
+        mimetype="multipart/x-mixed-replace; boundary=frame"
+    )
 
 # -------- MAIN -------- #
 if __name__ == "__main__":
