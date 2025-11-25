@@ -87,8 +87,27 @@ onMounted(() => {
         }
 
         // ✅ auto-stop video and schedule navigation when complete
+        // ✅ auto-stop video and schedule navigation when complete
         if (state === "Complete") {
             videoActive.value = false;
+
+            // 🔹 store final temperature for wellness summary
+            const rawTemp = irtData.value.temp_result;
+            let storedTemp = "";
+
+            if (typeof rawTemp === "number") {
+                if (Number.isFinite(rawTemp) && rawTemp > 0) {
+                    storedTemp = rawTemp.toString();
+                }
+            } else if (typeof rawTemp === "string") {
+                const num = Number(rawTemp);
+                if (Number.isFinite(num) && num > 0) {
+                    storedTemp = rawTemp;
+                }
+            }
+
+            // if error, null, NaN, or 0 → keep as empty (will show "--")
+            sessionStorage.setItem("wellness_temp", storedTemp);
 
             if (!autoNavigateTimeout) {
                 autoNavigateTimeout = setTimeout(() => {
@@ -152,7 +171,7 @@ const buttonLabel = computed(() => {
     // ✅ no more “Stop” label
     const state = irtState.value.state;
     if (state === "Measuring") return "Measuring...";
-    if (state === "Complete") return "Go to BP Measurement";
+    if (state === "Complete") return "Measured";
     return "Measurement";
 });
 
@@ -215,7 +234,9 @@ const displayTempResult = computed(() => {
                                     v-if="irtState.state !== 'Complete'"
                                     class="text-white text-l font-sm w-32 ml-auto text-right">
                                     {{ irtState.state }}
-                                    <span v-if="irtData.temp_max !== null"> {{ irtData.temp_max }}°C</span>
+                                        <span v-if="irtState.state === 'Meas.' && irtData.temp_max !== null">
+                                            {{ irtData.temp_max }}°C
+                                        </span>
                                 </span>
                                 <div :class="['w-8 h-8 rounded-full mr-10 ml-5', indicatorClass]"></div>
                             </div>
