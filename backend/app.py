@@ -44,7 +44,7 @@ def video_feed():
             socketio=socketio,
             face_cam=FACE_CAM,
             usb_port=USB_PORT,
-            temp_offset=1.5
+            temp_offset=2.0
         ),
         mimetype="multipart/x-mixed-replace; boundary=frame"
     )

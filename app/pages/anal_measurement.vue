@@ -64,6 +64,11 @@ const analStatusText = computed(() => {
   }
 });
 
+const buttonText = computed(() => {
+  if (isAnalyzing.value) return "analyzing…"
+  if (analysisDone.value) return "Back to Home"
+  return "wellness analysis"
+})
 // ---------- Helpers ----------
 const formattedTempSummary = computed(() => {
   const n = Number(tempSummary.value);

@@ -45,7 +45,12 @@ def bp_gpio_setup(socketio, RELAY_1, RELAY_2):
         # GPIO.cleanup()
 
         # Set up GPIO mode to BCM (alternatively, use GPIO.BOARD as required)
-        GPIO.setmode(GPIO.BCM)
+        current_mode = GPIO.getmode()
+        if current_mode is None:
+            GPIO.setmode(GPIO.BCM)
+        elif current_mode != GPIO.BCM:
+            # Someone else set BOARD mode (or something else)
+            raise RuntimeError(f"GPIO already set to a different mode: {current_mode}")
         # info("GPIO mode successfully set to BCM")
         socketio.emit('bp_update', {
                 'bp_state': {'state': 'GPIO setup'},
@@ -92,14 +97,19 @@ def bp_gpio_setup(socketio, RELAY_1, RELAY_2):
         })
         raise
 
-def bp_gpio_clear(RELAY_1, RELAY_2):
+def bp_gpio_clear(RELAY_1=None, RELAY_2=None, cleanup=True):
     try:
-        GPIO.output(RELAY_1, GPIO.HIGH)
-        GPIO.output(RELAY_2, GPIO.HIGH)
-        GPIO.cleanup()
+        if RELAY_1 is not None:
+            GPIO.output(RELAY_1, GPIO.HIGH)
+        if RELAY_2 is not None:
+            GPIO.output(RELAY_2, GPIO.HIGH)
+
+        if cleanup:
+            GPIO.cleanup()  # resets mode to None
         info("BP GPIO cleanup completed.")
     except Exception as e:
         error(f"GPIO cleanup error: {e}")
+
         
 def relay_control(socketio, relay, RELAY_1=17, RELAY_2=18):
     relay_pin = RELAY_1 if relay == 1 else RELAY_2
@@ -153,6 +163,8 @@ def bp_control(socketio, usb_port):
     rm_ocr_path = os.path.join(os.getcwd(), 'static', 'bp_image')
     clear_and_ensure_folder(rm_ocr_path)
     time.sleep(1)
+    ser = None 
+    ocr_triggered = False
     
     try:
         ser = initialize_serial(usb_port)
@@ -378,7 +390,7 @@ def bp_controller(socketio: SocketIO, measure_time, ocr_cam, usb_port):
     finally:
         # Always try to cleanup GPIO, but safely
         try:
-            bp_gpio_clear()
+            bp_gpio_clear(RELAY_1, RELAY_2)
         except Exception as e:
             error(f"GPIO cleanup error during bp_controller: {e}")
 
