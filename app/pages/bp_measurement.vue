@@ -19,8 +19,8 @@ interface BpData {
   success?: boolean;
 }
 
-interface bpIndicator{
-    state: string;
+interface bpIndicator {
+  state: string;
 }
 // ---- State ----
 
@@ -54,7 +54,7 @@ onMounted(() => {
       drawerStatus.value = 'opening';
       bpStateText.value = 'Opening Drawer...';
       bpIndicator.value = 'm';            // 🔹 indicator = moving while drawer opens
-    }, 2000);
+    }, 10000);
   });
 
   // Drawer status from backend (trigger_drawer in app.py)
@@ -63,7 +63,7 @@ onMounted(() => {
       drawerStatus.value = 'open';
       bpStateText.value = 'Ready to measure';
       bpIndicator.value = 'c';          // 🔹 drawer open & ready → green
-    } 
+    }
 
     else if (payload.status === '1DrawerClose') {
       drawerStatus.value = 'closed';
@@ -145,7 +145,7 @@ const canClickMainButton = computed(() => {
 
 const mainButtonLabel = computed(() => {
   if (measuring.value) return 'Measuring…';
-  if (measurementDone.value && drawerStatus.value === 'closed') return 'View Result';
+  if (measurementDone.value && drawerStatus.value === 'closed') return 'wellness summary';
   return 'Measurement';
 });
 
@@ -180,15 +180,15 @@ const handleMeasurementClick = async () => {
     if (res.success) {
       measurementDone.value = true;   // 🔹 mark as complete
     }
-        // 🔹 store BP values for wellness summary (0 / invalid / null → "--")
+    // 🔹 store BP values for wellness summary (0 / invalid / null → "--")
     const normalize = (val: number | null | undefined): string => {
       if (val == null) return "";
       if (!Number.isFinite(val) || val <= 0) return "";
       return String(val);
     };
 
-    sessionStorage.setItem("wellness_sys",   normalize(res.systolic));
-    sessionStorage.setItem("wellness_dia",   normalize(res.diastolic));
+    sessionStorage.setItem("wellness_sys", normalize(res.systolic));
+    sessionStorage.setItem("wellness_dia", normalize(res.diastolic));
     sessionStorage.setItem("wellness_pulse", normalize(res.pulse));
 
     // 3) After measurement complete, close drawer
@@ -212,89 +212,81 @@ const goToAnalMeasurement = () => {
 </script>
 
 <template>
-    <div
-        class="min-h-screen flex flex-col items-center justify-start py-10 px-6 bg-linear-to-r from-violet-200 to-pink-200">
-        <!-- Header -->
-        <HeaderAnimate :message="headerMessages" />
+  <div
+    class="min-h-screen flex flex-col items-center justify-start py-10 px-6 bg-linear-to-r from-violet-200 to-pink-200">
+    <!-- Header -->
+    <HeaderAnimate :message="headerMessages" />
 
-        <div
-            class="w-full max-w-6xl bg-white rounded-2xl shadow-2xl p-10 flex flex-col items-center justify-center mt-5">
-            <div class="bg-white rounded-2xl px-1 py-1 w-full">
-                <div class="flex items-center justify-center mb-8 relative">
+    <div class="w-full max-w-6xl bg-white rounded-2xl shadow-2xl p-10 flex flex-col items-center justify-center mt-5">
+      <div class="bg-white rounded-2xl px-1 py-1 w-full">
+        <div class="flex items-center justify-center mb-8 relative">
 
-                    <!-- Side Button -->
-                    <button
-                        @click="router.back()"
-                        class="absolute flex items-center left-0 top-0 justify-center w-32 h-16 bg-gray-300 rounded-full hover:bg-gray-400 transition"
-                        >
-                        ← Back
-                    </button>
-                    <button
-                        @click="router.push('/anal_measurement')"
-                        class="absolute flex items-center right-0 top-0 justify-center w-32 h-16 bg-gray-0 rounded-full hover:bg-gray-400 transition"
-                        >
+          <!-- Side Button -->
+          <button @click="router.back()"
+            class="absolute flex items-center left-0 top-0 justify-center w-32 h-16 bg-gray-300 rounded-full hover:bg-gray-400 transition">
+            ← Back
+          </button>
+          <button @click="router.push('/anal_measurement')"
+            class="absolute flex items-center right-0 top-0 justify-center w-32 h-16 bg-gray-0 rounded-full hover:bg-gray-400 transition">
 
-                    </button>
-                    <button
-                      @click="handleCloseDrawer"
-                      class="absolute flex items-center right-0 top-40 justify-center w-32 h-16 bg-gray-0 rounded-full hover:bg-gray-400 transition"
-                    >
-                    </button>
+          </button>
+          <button @click="handleCloseDrawer"
+            class="absolute flex items-center right-0 top-40 justify-center w-32 h-16 bg-gray-0 rounded-full hover:bg-gray-400 transition">
+          </button>
 
-                    <!--  Frame  -->
-                    <div class="flex flex-col items-center justify-center">
-                        <div class="w-[640px] h-[640px] bg-gray-300 rounded-2xl overflow-hidden flex flex-col items-center justify-center relative"
-                            style="aspect-ratio: 1;">
+          <!--  Frame  -->
+          <div class="flex flex-col items-center justify-center">
+            <div
+              class="w-[640px] h-[640px] bg-gray-300 rounded-2xl overflow-hidden flex flex-col items-center justify-center relative"
+              style="aspect-ratio: 1;">
 
-                            <!-- Blood pressure Box -->
-                            <div class="absolute top-6 left-1/2 transform -translate-x-1/2 bg-black rounded-2xl  py-6 flex items-center justify-between w-[90%]"
-                                style="min-width: 60%;">
-                                <span class="text-white text-2xl font-bold ml-5">
-                                    Blood Pressure
-                                </span>
-                                <span class="text-white text-l font-sm w-56 ml-auto text-right">{{ bpStateText }}</span>
-                                <div :class="['w-8 h-8 rounded-full bg-white mr-10 ml-5', indicatorClass]"></div>
-                            </div>
-                            <div class="absolute w-[90%] top-40 left-1/2 transform -translate-x-1/2 bg-black rounded-2xl py-8 mt-6 flex justify-between items-center">
-                                <div class="flex flex-col leading-tight">
-                                <span class="text-white text-7xl ml-10 font-black">SYS</span>
-                                <span class="text-white text-sm ml-10 mt-3">mmHg</span>
-                                </div>
-                                <span class="text-white text-8xl font-black mr-20">{{ bpData?.systolic ?? '--' }}</span>
-                            </div>
-                            <div class="absolute w-[90%] top-90 left-1/2 transform -translate-x-1/2 bg-black rounded-2xl py-8 mt-6 flex justify-between items-center">
-                                <div class="flex flex-col leading-tight">
-                                <span class="text-white text-7xl ml-10 font-black">DIA</span>
-                                <span class="text-white text-sm ml-10 mt-3">mmHg</span>
-                                </div>
-                                <span class="text-white text-8xl font-black mr-20">{{ bpData?.diastolic ?? '--' }}</span>
-                            </div>
-                            <!-- <div class="absolute w-[90%] top-110 left-1/2 transform -translate-x-1/2 bg-black rounded-2xl py-6 mt-6 flex justify-between items-center">
+              <!-- Blood pressure Box -->
+              <div
+                class="absolute top-6 left-1/2 transform -translate-x-1/2 bg-black rounded-2xl  py-6 flex items-center justify-between w-[90%]"
+                style="min-width: 60%;">
+                <span class="text-white text-2xl font-bold ml-5">
+                  Blood Pressure
+                </span>
+                <span class="text-white text-l font-sm w-56 ml-auto text-right">{{ bpStateText }}</span>
+                <div :class="['w-8 h-8 rounded-full bg-white mr-10 ml-5', indicatorClass]"></div>
+              </div>
+              <div
+                class="absolute w-[90%] top-40 left-1/2 transform -translate-x-1/2 bg-black rounded-2xl py-8 mt-6 flex justify-between items-center">
+                <div class="flex flex-col leading-tight">
+                  <span class="text-white text-7xl ml-10 font-black">SYS</span>
+                  <span class="text-white text-sm ml-10 mt-3">mmHg</span>
+                </div>
+                <span class="text-white text-8xl font-black mr-20">{{ bpData?.systolic ?? '--' }}</span>
+              </div>
+              <div
+                class="absolute w-[90%] top-90 left-1/2 transform -translate-x-1/2 bg-black rounded-2xl py-8 mt-6 flex justify-between items-center">
+                <div class="flex flex-col leading-tight">
+                  <span class="text-white text-7xl ml-10 font-black">DIA</span>
+                  <span class="text-white text-sm ml-10 mt-3">mmHg</span>
+                </div>
+                <span class="text-white text-8xl font-black mr-20">{{ bpData?.diastolic ?? '--' }}</span>
+              </div>
+              <!-- <div class="absolute w-[90%] top-110 left-1/2 transform -translate-x-1/2 bg-black rounded-2xl py-6 mt-6 flex justify-between items-center">
                                 <div class="flex flex-col leading-tight">
                                 <span class="text-white text-7xl ml-10 font-black">PULSE</span>
                                 <span class="text-white text-sm ml-10 mt-3">BPM</span>
                                 </div>
                                 <span class="text-white text-8xl font-black mr-20">{{ bpData?.pulse ?? '--' }}</span>
                             </div> -->
-                        </div>
-                    </div>
-
-                </div>
             </div>
-
-            <!-- Measurement Button -->
-            <button
-              @click="handleMeasurementClick"
-              :disabled="!canClickMainButton"
-              class="px-20 py-8 text-3xl font-extrabold rounded-2xl shadow-xl 
-                    hover:scale-110 transition-all duration-600 whitespace-nowrap text-center"
-              :class="canClickMainButton
-                ? 'bg-black text-white hover:bg-blue-600'
-                : 'bg-gray-400 text-gray-700 cursor-not-allowed'"
-            >
-              {{ mainButtonLabel }}
-            </button>
+          </div>
 
         </div>
+      </div>
+
+      <!-- Measurement Button -->
+      <button @click="handleMeasurementClick" :disabled="!canClickMainButton" class="px-20 py-8 text-3xl font-extrabold rounded-2xl shadow-xl 
+                    hover:scale-110 transition-all duration-600 whitespace-nowrap text-center" :class="canClickMainButton
+                      ? 'bg-black text-white hover:bg-blue-600'
+                      : 'bg-gray-400 text-gray-700 cursor-not-allowed'">
+        {{ mainButtonLabel }}
+      </button>
+
     </div>
+  </div>
 </template>

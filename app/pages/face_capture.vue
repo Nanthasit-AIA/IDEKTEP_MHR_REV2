@@ -121,22 +121,19 @@ onUnmounted(() => {
     <!-- Header -->
     <HeaderAnimate :message="headerMessages" />
 
-    <div
-      class="w-full max-w-6xl bg-white rounded-2xl shadow-2xl p-10 flex flex-col items-center justify-center mt-5">
+    <div class="w-full max-w-6xl bg-white rounded-2xl shadow-2xl p-10 flex flex-col items-center justify-center mt-5">
 
       <div class="bg-white rounded-2xl px-1 py-1 w-full">
         <div class="flex items-center justify-center mb-8 relative">
 
           <!-- Back Button -->
-          <button
-            @click="router.back()"
+          <button @click="router.back()"
             class="absolute flex items-center left-0 top-0 justify-center w-32 h-16 bg-gray-300 rounded-full hover:bg-gray-400 transition">
             ← Back
           </button>
 
           <!-- Next Button -->
-          <button
-            @click="router.push('/face_id')"
+          <button @click="router.push('/face_id')"
             class="absolute flex items-center right-0 top-0 justify-center w-32 h-16 bg-gray-300 rounded-full hover:bg-gray-400 transition">
           </button>
 
@@ -187,9 +184,7 @@ onUnmounted(() => {
       </div>
 
       <!-- Capture Button -->
-      <button
-        @click="startCapture"
-        class="px-20 py-8 bg-black text-white text-3xl font-extrabold rounded-2xl shadow-xl 
+      <button @click="startCapture" class="px-20 py-8 bg-black text-white text-3xl font-extrabold rounded-2xl shadow-xl 
                hover:scale-110 transition-all duration-600 whitespace-nowrap text-center
                hover:bg-blue-600">
         Face Capture
@@ -197,4 +192,3 @@ onUnmounted(() => {
     </div>
   </div>
 </template>
-

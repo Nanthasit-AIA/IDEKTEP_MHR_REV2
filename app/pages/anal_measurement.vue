@@ -9,10 +9,7 @@ const headerMessages = [
   'Analysis Measurement',
 ];
 
-const actionButtons = [
-  { label: 'wellness analysis', to: '/' },
-];
-
+const analysisDone = ref(false)
 // ---------- Wellness summary state ----------
 const tempSummary = ref<string>('−−');
 const sysSummary = ref<string>('−−');
@@ -27,6 +24,7 @@ const analysisBpLine = ref<string>('');    // "blood pressure - xxx"
 
 const isAnalyzing = ref<boolean>(false);        // spinner control
 const canClickMainButton = ref<boolean>(false); // enable button after data ready
+
 
 // ---------- Indicator (status dot) ----------
 type Indicator = 'c' | 'm' | 'e' | '';
@@ -67,6 +65,11 @@ const analStatusText = computed(() => {
 });
 
 // ---------- Helpers ----------
+const formattedTempSummary = computed(() => {
+  const n = Number(tempSummary.value);
+  return Number.isFinite(n) ? n.toFixed(1) : tempSummary.value;
+});
+
 const normalizeMeasurement = (raw: string | null): string => {
   if (!raw) return '−−';
   const num = Number(raw);
@@ -106,19 +109,19 @@ const runWellnessAnalysis = () => {
     tempLevel === 'missing'
       ? 'temperature – not available'
       : tempLevel === 'high'
-      ? 'temperature – high'
-      : tempLevel === 'low'
-      ? 'temperature – low'
-      : 'temperature – normal';
+        ? 'temperature – high'
+        : tempLevel === 'low'
+          ? 'temperature – low'
+          : 'temperature – normal';
 
   analysisBpLine.value =
     bpLevel === 'missing'
       ? 'blood pressure – not available'
       : bpLevel === 'high'
-      ? 'blood pressure – high'
-      : bpLevel === 'low'
-      ? 'blood pressure – low'
-      : 'blood pressure – balance';
+        ? 'blood pressure – high'
+        : bpLevel === 'low'
+          ? 'blood pressure – low'
+          : 'blood pressure – balance';
 
   // --------- choose main + footer + indicator ----------
   // no data
@@ -281,141 +284,149 @@ onMounted(() => {
 
 
 <template>
-    <div
-        class="min-h-screen flex flex-col items-center justify-start py-10 px-6 bg-linear-to-r from-violet-200 to-pink-200">
-        <!-- Header -->
-        <HeaderAnimate :message="headerMessages" />
+  <div
+    class="min-h-screen flex flex-col items-center justify-start py-10 px-6 bg-linear-to-r from-violet-200 to-pink-200">
+    <!-- Header -->
+    <HeaderAnimate :message="headerMessages" />
 
-        <div
-            class="w-full max-w-6xl bg-white rounded-2xl shadow-2xl p-10 flex flex-col items-center justify-center mt-5">
-            <div class="bg-white rounded-2xl px-1 py-1 w-full">
-                <div class="flex items-center justify-center mb-8 relative">
+    <div class="w-full max-w-6xl bg-white rounded-2xl shadow-2xl p-10 flex flex-col items-center justify-center mt-5">
+      <div class="bg-white rounded-2xl px-1 py-1 w-full">
+        <div class="flex items-center justify-center mb-8 relative">
 
-                    <!-- Side Button -->
-                    <!-- <button @click="router.back()"
+          <!-- Side Button -->
+          <!-- <button @click="router.back()"
                         class="absolute left-0 top-0 w-14 h-14 rounded-full bg-gray-300 flex items-center justify-center 
                         hover:scale-110 transition-all duration-600 whitespace-nowrap text-center
                         hover:bg-blue-600">
                         <span class="text-2xl font-bold text-gray-700"></span>
                     </button> -->
-                    <button @click="router.back()"
-                        class="absolute flex items-center left-0 top-0 justify-center w-32 h-16 bg-gray-300 rounded-full hover:bg-gray-400 transition">
-                        ← Back
-                    </button>
-                    <button @click="router.push('/')"
-                        class="absolute flex items-center right-0 top-0 justify-center w-32 h-16 bg-gray-0 rounded-full hover:bg-gray-400 transition">
+          <button @click="router.back()"
+            class="absolute flex items-center left-0 top-0 justify-center w-32 h-16 bg-gray-300 rounded-full hover:bg-gray-400 transition">
+            ← Back
+          </button>
+          <button @click="router.push('/')"
+            class="absolute flex items-center right-0 top-0 justify-center w-32 h-16 bg-gray-0 rounded-full hover:bg-gray-400 transition">
 
-                    </button>
+          </button>
 
 
-                    <!--  Frame  -->
-                    <div class="flex flex-col items-center justify-center">
-                        <div class="w-[750px] h-[640px] bg-white rounded-2xl overflow-hidden flex flex-col items-center justify-center relative"
-                            style="aspect-ratio: 1;">
+          <!--  Frame  -->
+          <div class="flex flex-col items-center justify-center">
+            <div
+              class="w-[750px] h-[640px] bg-white rounded-2xl overflow-hidden flex flex-col items-center justify-center relative"
+              style="aspect-ratio: 1;">
 
-                            <!-- Analysis Box -->
-                            <div
-                                class="absolute w-[90%] top-0 left-1/2 -translate-x-1/2 bg-black rounded-2xl py-6 text-white flex flex-col">
+              <!-- Analysis Box -->
+              <div
+                class="absolute w-[90%] top-0 left-1/2 -translate-x-1/2 bg-black rounded-2xl py-6 text-white flex flex-col">
 
-                                <!-- Header row -->
-                                <div class="w-full flex items-center justify-between border-b-4 border-white pb-4">
-                                <h2 class="text-2xl font-sm px-10">wellness analysis</h2>
-                                <span class="text-white text-l font-sm w-24 ml-auto text-right">{{ analStatusText }}</span>
+                <!-- Header row -->
+                <div class="w-full flex items-center justify-between border-b-4 border-white pb-4">
+                  <h2 class="text-2xl font-sm px-10">wellness analysis</h2>
+                  <span class="text-white text-l font-sm w-24 ml-auto text-right">{{ analStatusText }}</span>
 
-                                <!-- ★ Indicator Dot -->
-                                <div :class="['w-8 h-8 rounded-full mr-10 ml-5', indicatorClass]"></div>
-                                </div>
+                  <!-- ★ Indicator Dot -->
+                  <div :class="['w-8 h-8 rounded-full mr-10 ml-5', indicatorClass]"></div>
+                </div>
 
-                                <!-- Analysis Content -->
-                                <div class="flex flex-col md:flex-row items-center justify-center gap-8 pt-8 py-8">
+                <!-- Analysis Content -->
+                <div class="flex flex-col md:flex-row items-center justify-center gap-8 pt-8 py-8">
 
-                                <!-- Emoji / Spinner -->
-                                <div class="flex items-center justify-center w-32 h-32 rounded-full">
+                  <!-- Emoji / Spinner -->
+                  <div class="flex items-center justify-center w-32 h-32 rounded-full">
 
-                                    <!-- Loading spinner -->
-                                    <div
-                                    v-if="isAnalyzing"
-                                    class="w-16 h-16 border-4 border-white border-t-transparent rounded-full animate-spin">
-                                    </div>
+                    <!-- Loading spinner -->
+                    <div v-if="isAnalyzing"
+                      class="w-16 h-16 border-4 border-white border-t-transparent rounded-full animate-spin ml-10">
+                    </div>
 
-                                    <!-- Static emoji -->
-                                    <span v-else class="text-6xl ml-5">🙂</span>
-                                </div>
+                    <!-- Result emoji -->
+                    <span v-else-if="analIndicator === 'c'" class="text-6xl ml-10">
+                      😊
+                    </span>
 
-                                <!-- Main Text -->
-                                <div class="flex-1 text-center md:text-left">
+                    <span v-else-if="analIndicator === 'm'" class="text-6xl ml-10">
+                      😕
+                    </span>
 
-                                    <!-- Main message -->
-                                    <p v-if="analysisMain" class="text-xl font-semibold">
-                                    {{ analysisMain }}
-                                    </p>
+                    <span v-else-if="analIndicator === 'e'" class="text-6xl ml-10">
+                      ☹️
+                    </span>
 
-                                    <!-- Lines -->
-                                    <div class="mt-4 space-y-1 text-lg ml-10">
-                                    <p v-if="analysisTempLine">🌡️ {{ analysisTempLine }}</p>
-                                    <p v-if="analysisBpLine">🫀 {{ analysisBpLine }}</p>
-                                    </div>
+                    <!-- Idle (blank) -->
+                    <span v-else class="text-6xl ml-10"></span>
+                  </div>
 
-                                    <!-- Footer message -->
-                                    <p v-if="analysisFooter" class="mt-8 text-lg">
-                                    {{ analysisFooter }}
-                                    </p>
-                                </div>
-                                </div>
-                            </div>
-                            <div class="absolute w-[90%] top-85 left-1/2 -translate-x-1/2 bg-black rounded-2xl  py-4 text-white flex flex-col ">
-                                <!-- Header: title + green status dot -->
-                                <div class="w-full flex items-center justify-between border-b-4 border-white pb-4">
-                                    <h2 class="text-2xl font-sm px-10">wellness summary</h2>
-                                </div>
+                  <!-- Main Text -->
+                  <div class="flex-1 text-center md:text-left">
 
-                                <!-- Content -->
-                                <div class="flex flex-col md:flex-row items-center justify-center gap-8 pt-4 py-48">
-                                    <div
-                                        class="absolute w-[70%] top-20 bg-black bg-opacity-100 rounded-2xl py-2 mt-2 flex items-center px-5 hover:scale-110">
-                                        <span class="text-white text-2xl mr-4">🌡️</span>
-                                        <span class="text-white text-2xl font-sm w-32">Temperature</span>
-                                        <span class="text-white text-4xl font-sm ml-30 mr-2">{{ tempSummary }}</span>
-                                        <span class="text-white text-xl w-16 ml-auto">°C</span>
-                                    </div>
-                                    <div
-                                        class="absolute w-[70%] top-35 bg-black bg-opacity-100 rounded-2xl py-2 mt-2 flex items-center px-5 hover:scale-110">
-                                        <span class="text-white text-2xl mr-4">🫀</span>
-                                        <span class="text-white text-2xl font-sm w-32">SYS</span>
-                                        <span class="text-white text-4xl font-sm ml-30 mr-2">{{ sysSummary }}</span>
-                                        <span class="text-white text-xl w-16 ml-auto">mmHg</span>
-                                    </div>
-                                    <div
-                                        class="absolute w-[70%] top-50 bg-black bg-opacity-100 rounded-2xl py-2 mt-2 flex items-center px-5 hover:scale-110">
-                                        <span class="text-white text-2xl mr-4">🫀</span>
-                                        <span class="text-white text-2xl font-sm w-32">DIA</span>
-                                        <span class="text-white text-4xl font-sm ml-30 mr-2">{{ diaSummary }}</span>
-                                        <span class="text-white text-xl w-16 ml-auto">mmHg</span>
-                                    </div>
-                                    <!-- <div
+                    <!-- Main message -->
+                    <p v-if="analysisMain" class="text-xl font-semibold">
+                      {{ analysisMain }}
+                    </p>
+
+                    <!-- Lines -->
+                    <div class="mt-4 space-y-1 text-lg ml-10">
+                      <p v-if="analysisTempLine">🌡️ {{ analysisTempLine }}</p>
+                      <p v-if="analysisBpLine">🩸 {{ analysisBpLine }}</p>
+                    </div>
+
+                    <!-- Footer message -->
+                    <p v-if="analysisFooter" class="mt-8 text-lg">
+                      {{ analysisFooter }}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div
+                class="absolute w-[90%] top-85 left-1/2 -translate-x-1/2 bg-black rounded-2xl  py-4 text-white flex flex-col ">
+                <!-- Header: title + green status dot -->
+                <div class="w-full flex items-center justify-between border-b-4 border-white pb-4">
+                  <h2 class="text-2xl font-sm px-10">wellness summary</h2>
+                </div>
+
+                <!-- Content -->
+                <div class="flex flex-col md:flex-row items-center justify-center gap-8 pt-4 py-48">
+                  <div
+                    class="absolute w-[70%] top-20 bg-black bg-opacity-100 rounded-2xl py-2 mt-2 flex items-center px-5 hover:scale-110">
+                    <span class="text-white text-2xl mr-4">🌡️</span>
+                    <span class="text-white text-2xl font-sm w-32 mr-20">Temperature</span>
+                    <span class="text-white text-4xl font-sm mr-2 ml-auto text-right">{{ formattedTempSummary }}</span>
+                    <span class="text-white text-xl w-16 ml-auto">°C</span>
+                  </div>
+                  <div
+                    class="absolute w-[70%] top-35 bg-black bg-opacity-100 rounded-2xl py-2 mt-2 flex items-center px-5 hover:scale-110">
+                    <span class="text-white text-2xl mr-4">🩸</span>
+                    <span class="text-white text-2xl font-sm w-32 mr-20">SYS</span>
+                    <span class="text-white text-4xl font-sm  mr-2 ml-auto text-right">{{ sysSummary }}</span>
+                    <span class="text-white text-xl w-16 ml-auto">mmHg</span>
+                  </div>
+                  <div
+                    class="absolute w-[70%] top-50 bg-black bg-opacity-100 rounded-2xl py-2 mt-2 flex items-center px-5 hover:scale-110">
+                    <span class="text-white text-2xl mr-4">🩸</span>
+                    <span class="text-white text-2xl font-sm w-32 mr-20">DIA</span>
+                    <span class="text-white text-4xl font-sm mr-2 ml-auto text-right">{{ diaSummary }}</span>
+                    <span class="text-white text-xl w-16 ml-auto">mmHg</span>
+                  </div>
+                  <!-- <div
                                         class="absolute w-[70%] top-65 bg-black bg-opacity-100 rounded-2xl py-2 mt-2 flex items-center px-5 hover:scale-110">
                                         <span class="text-white text-2xl mr-4">🫀</span>
                                         <span class="text-white text-2xl font-sm w-32">PULSE</span>
                                         <span class="text-white text-4xl font-sm ml-30 mr-2">100</span>
                                         <span class="text-white text-xl w-16 ml-auto">BPM</span>
                                     </div> -->
-                                </div>
-                            </div>
-                        </div>
-                    </div>
                 </div>
+              </div>
             </div>
-      <button
-        @click="handleMeasurementClick"
-        :disabled="!canClickMainButton || isAnalyzing"
-        class="px-20 py-8 text-3xl font-extrabold rounded-2xl shadow-xl 
-               hover:scale-110 transition-all duration-600 whitespace-nowrap text-center"
-        :class="!canClickMainButton || isAnalyzing
-          ? 'bg-gray-400 text-gray-700 cursor-not-allowed'
-          : 'bg-black text-white hover:bg-blue-600'"
-      >
+          </div>
+        </div>
+      </div>
+      <button @click="handleMeasurementClick" :disabled="!canClickMainButton || isAnalyzing" class="px-20 py-8 text-3xl font-extrabold rounded-2xl shadow-xl 
+               hover:scale-110 transition-all duration-600 whitespace-nowrap text-center" :class="!canClickMainButton || isAnalyzing
+                ? 'bg-gray-400 text-gray-700 cursor-not-allowed'
+                : 'bg-black text-white hover:bg-blue-600'">
         wellness analysis
       </button>
-        </div>
     </div>
+  </div>
 </template>

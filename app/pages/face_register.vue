@@ -64,15 +64,13 @@ const handleRegister = async () => {
       <div class="flex items-center justify-center mb-10 relative">
 
         <!-- Back Button -->
-        <button
-          @click="router.back()"
+        <button @click="router.back()"
           class="absolute left-0 top-0 flex items-center justify-center w-32 h-16 bg-gray-300 rounded-full hover:bg-gray-400 transition">
           ← Back
         </button>
 
         <!-- Next Button -->
-        <button
-          @click="router.push('/face_capture')"
+        <button @click="router.push('/face_capture')"
           class="absolute right-0 top-0 flex items-center justify-center w-32 h-16 bg-gray-300 rounded-full hover:bg-gray-400 transition">
           Next →
         </button>
@@ -93,40 +91,26 @@ const handleRegister = async () => {
 
         <!-- First Name -->
         <label class="block text-2xl font-bold mb-2">First Name</label>
-        <input
-          v-model="firstName"
-          type="text"
-          placeholder="Enter first name"
-          class="w-full text-2xl p-5 border rounded-xl mb-6 bg-gray-50 focus:ring-4 focus:ring-violet-300"
-        />
+        <input v-model="firstName" type="text" placeholder="Enter first name"
+          class="w-full text-2xl p-5 border rounded-xl mb-6 bg-gray-50 focus:ring-4 focus:ring-violet-300" />
 
         <!-- Last Name -->
         <label class="block text-2xl font-bold mb-2">Last Name</label>
-        <input
-          v-model="lastName"
-          type="text"
-          placeholder="Enter last name"
-          class="w-full text-2xl p-5 border rounded-xl mb-6 bg-gray-50 focus:ring-4 focus:ring-violet-300"
-        />
+        <input v-model="lastName" type="text" placeholder="Enter last name"
+          class="w-full text-2xl p-5 border rounded-xl mb-6 bg-gray-50 focus:ring-4 focus:ring-violet-300" />
 
         <!-- Additional Information -->
         <label class="block text-2xl font-bold mb-2">Additional Information</label>
-        <textarea
-          v-model="additionalInfo"
-          rows="3"
-          placeholder="Enter additional details"
-          class="w-full text-2xl p-5 border rounded-xl bg-gray-50 focus:ring-4 focus:ring-violet-300"
-        ></textarea>
+        <textarea v-model="additionalInfo" rows="3" placeholder="Enter additional details"
+          class="w-full text-2xl p-5 border rounded-xl bg-gray-50 focus:ring-4 focus:ring-violet-300"></textarea>
 
       </div>
 
       <!-- Register Button -->
       <div class="flex justify-center mt-6">
-        <button
-        @click="handleRegister"
-        class="px-20 py-8 bg-black text-white text-3xl font-extrabold rounded-2xl shadow-xl 
+        <button @click="handleRegister" class="px-20 py-8 bg-black text-white text-3xl font-extrabold rounded-2xl shadow-xl 
         hover:scale-110 transition-all duration-600 hover:bg-blue-600">
-        Register
+          Register
         </button>
       </div>
 

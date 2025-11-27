@@ -40,13 +40,13 @@ const headerMessages = [
                                     class="w-full h-full object-cover" />
                             </template>
 
-                            2) Otherwise show live video if active -->
+2) Otherwise show live video if active -->
                             <!-- <template v-else-if="videoActive">
                                 <img :src="videoUrl" alt="IR Camera Stream" class="w-full h-full object-cover" />
                             </template> -->
 
                             <!-- 3) Otherwise show placeholder text -->
-                            <template >
+                            <template>
                                 <p class="text-black text-xl font-medium">Camera not Active</p>
                             </template>
 
@@ -54,10 +54,9 @@ const headerMessages = [
                             <div class="absolute bottom-3 left-1/2 transform -translate-x-1/2 bg-black rounded-2xl px- py-6 flex items-center justify-between w-[90%]"
                                 style="min-width: 60%;">
                                 <span class="text-white text-2xl font-bold ml-10">
-                                    Face verify : 
+                                    Face verify :
                                 </span>
-                                <span
-                                    class="text-white text-l font-sm w-32 ml-auto text-right">
+                                <span class="text-white text-l font-sm w-32 ml-auto text-right">
                                     analysis..
                                 </span>
                                 <div :class="['w-8 h-8 rounded-full bg-white mr-10 ml-5']"></div>

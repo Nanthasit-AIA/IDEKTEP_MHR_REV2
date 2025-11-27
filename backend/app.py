@@ -11,7 +11,7 @@ from coloredlogs import install
 import os
 import csv
 from datetime import datetime
-from module.face_recognition.face_verify import stream_face_collection  # adjust import path
+# from module.face_recognition.face_verify import stream_face_collection  # adjust import path
 
 log_format = "%(asctime)s - %(hostname)s:%(username)s:%(programname)s - %(levelname)s: %(message)s"
 install(level="info", format=log_format)
@@ -159,18 +159,18 @@ def register_information():
 
     return jsonify({"id": user_id})
 
-@app.get("/face_collect_feed")
-def face_collect_feed():
-    person_id = request.args.get("id", "UNKNOWN")
-    return Response(
-        stream_face_collection(
-            socketio=socketio,
-            device_id=0,
-            img_capture=10,
-            person_name=person_id
-        ),
-        mimetype="multipart/x-mixed-replace; boundary=frame"
-    )
+# @app.get("/face_collect_feed")
+# def face_collect_feed():
+#     person_id = request.args.get("id", "UNKNOWN")
+#     return Response(
+#         stream_face_collection(
+#             socketio=socketio,
+#             device_id=0,
+#             img_capture=10,
+#             person_name=person_id
+#         ),
+#         mimetype="multipart/x-mixed-replace; boundary=frame"
+#     )
 
 # -------- MAIN -------- #
 if __name__ == "__main__":

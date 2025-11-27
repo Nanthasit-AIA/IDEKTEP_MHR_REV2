@@ -230,13 +230,12 @@ const displayTempResult = computed(() => {
                                 <span class="text-white text-2xl font-bold ml-10">
                                     Temperature : {{ displayTempResult }} °C
                                 </span>
-                                <span
-                                    v-if="irtState.state !== 'Complete'"
+                                <span v-if="irtState.state !== 'Complete'"
                                     class="text-white text-l font-sm w-32 ml-auto text-right">
                                     {{ irtState.state }}
-                                        <span v-if="irtState.state === 'Meas.' && irtData.temp_max !== null">
-                                            {{ irtData.temp_max }}°C
-                                        </span>
+                                    <span v-if="irtState.state === 'Meas.' && irtData.temp_max !== null">
+                                        {{ irtData.temp_max }}°C
+                                    </span>
                                 </span>
                                 <div :class="['w-8 h-8 rounded-full mr-10 ml-5', indicatorClass]"></div>
                             </div>
