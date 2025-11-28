@@ -64,11 +64,10 @@ const analStatusText = computed(() => {
   }
 });
 
-const buttonText = computed(() => {
-  if (isAnalyzing.value) return "analyzing…"
-  if (analysisDone.value) return "Back to Home"
-  return "wellness analysis"
-})
+const mainButtonLabel = computed(() =>
+  !analysisDone.value ? 'wellness analysis' : 'save & back to home'
+);
+
 // ---------- Helpers ----------
 const formattedTempSummary = computed(() => {
   const n = Number(tempSummary.value);
@@ -245,26 +244,81 @@ const runWellnessAnalysis = () => {
   analysisFooter.value =
     'Monitor your condition and consider consulting a healthcare professional.';
 };
+const saveMeasurementAndGoHome = async () => {
+  // convert display text into numbers or null
+  const payload = {
+    temp: toNumber(tempSummary.value),
+    systolic: toNumber(sysSummary.value),
+    diastolic: toNumber(diaSummary.value),
+    pulse: toNumber(pulseSummary.value),
+    indicator: analIndicator.value,
+  };
 
+  try {
+    await $fetch('http://localhost:5000/api/save_measurement', {
+      method: 'POST',
+      body: payload,
+    });
+
+    // ✅ clear all stage / state
+    tempSummary.value = '−−';
+    sysSummary.value = '−−';
+    diaSummary.value = '−−';
+    pulseSummary.value = '−−';
+
+    analysisMain.value = '';
+    analysisFooter.value = '';
+    analysisTempLine.value = '';
+    analysisBpLine.value = '';
+
+    analIndicator.value = '';
+    isAnalyzing.value = false;
+    canClickMainButton.value = false;
+    analysisDone.value = false;
+
+    // optional: clear session values so next time is fresh
+    sessionStorage.removeItem('wellness_temp');
+    sessionStorage.removeItem('wellness_sys');
+    sessionStorage.removeItem('wellness_dia');
+    sessionStorage.removeItem('wellness_pulse');
+
+    // ✅ go back home
+    router.push('/');
+  } catch (err) {
+    console.error('Failed to save measurement', err);
+    // you can show a toast / error text here if you like
+  }
+};
 // ---------- Button handler ----------
+
 const handleMeasurementClick = () => {
+  // block when data not ready or still analyzing
   if (isAnalyzing.value || !canClickMainButton.value) return;
 
-  // Stage 2 – analysis...
-  isAnalyzing.value = true;
-  analIndicator.value = 'm'; // yellow while thinking
+  // 🟡 1st click: run analysis
+  if (!analysisDone.value) {
+    isAnalyzing.value = true;
+    analIndicator.value = 'm'; // yellow while thinking
 
-  // clear previous analysis while "thinking"
-  analysisMain.value = '';
-  analysisFooter.value = '';
-  analysisTempLine.value = '';
-  analysisBpLine.value = '';
+    // clear previous analysis while "thinking"
+    analysisMain.value = '';
+    analysisFooter.value = '';
+    analysisTempLine.value = '';
+    analysisBpLine.value = '';
 
-  setTimeout(() => {
-    runWellnessAnalysis();   // sets analIndicator to c/m/e for Stage 3
-    isAnalyzing.value = false;
-  }, 3000); // fake 3-second analysis time
+    setTimeout(() => {
+      runWellnessAnalysis();   // sets analIndicator to c/m/e
+      isAnalyzing.value = false;
+      analysisDone.value = true; // ✅ mark analysis finished
+    }, 2000);
+
+    return;
+  }
+
+  // ✅ 2nd click: save & go home
+  saveMeasurementAndGoHome();
 };
+
 
 // ---------- Lifecycle ----------
 onMounted(() => {
@@ -426,11 +480,14 @@ onMounted(() => {
           </div>
         </div>
       </div>
-      <button @click="handleMeasurementClick" :disabled="!canClickMainButton || isAnalyzing" class="px-20 py-8 text-3xl font-extrabold rounded-2xl shadow-xl 
-               hover:scale-110 transition-all duration-600 whitespace-nowrap text-center" :class="!canClickMainButton || isAnalyzing
-                ? 'bg-gray-400 text-gray-700 cursor-not-allowed'
-                : 'bg-black text-white hover:bg-blue-600'">
-        wellness analysis
+      <button @click="handleMeasurementClick"
+              :disabled="!canClickMainButton || isAnalyzing"
+              class="px-20 py-8 text-3xl font-extrabold rounded-2xl shadow-xl 
+                    hover:scale-110 transition-all duration-600 whitespace-nowrap text-center"
+              :class="!canClickMainButton || isAnalyzing
+                      ? 'bg-gray-400 text-gray-700 cursor-not-allowed'
+                      : 'bg-black text-white hover:bg-blue-600'">
+        {{ mainButtonLabel }}
       </button>
     </div>
   </div>

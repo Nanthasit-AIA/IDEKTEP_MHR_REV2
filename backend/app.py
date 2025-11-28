@@ -172,6 +172,45 @@ def register_information():
 #         mimetype="multipart/x-mixed-replace; boundary=frame"
 #     )
 
+# ✅ Add this block for measurement logging
+MEASUREMENT_DIR = os.path.join("static", "measurement")
+MEASUREMENT_CSV = os.path.join(MEASUREMENT_DIR, "value.csv")
+os.makedirs(MEASUREMENT_DIR, exist_ok=True)
+
+@app.post("/api/save_measurement")
+def save_measurement():
+    """
+    Save wellness measurement into static/measurement/value.csv
+    Expected JSON body:
+    {
+        "temp": number | null,
+        "systolic": number | null,
+        "diastolic": number | null,
+        "pulse": number | null,
+        "indicator": "c" | "m" | "e" | ""
+    }
+    """
+    data = request.get_json(force=True) or {}
+
+    temp = data.get("temp")
+    systolic = data.get("systolic")
+    diastolic = data.get("diastolic")
+    pulse = data.get("pulse")
+    indicator = data.get("indicator", "")
+
+    timestamp = datetime.now().isoformat(timespec="seconds")
+
+    file_exists = os.path.exists(MEASUREMENT_CSV)
+    with open(MEASUREMENT_CSV, "a", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        if not file_exists:
+            writer.writerow(
+                ["timestamp", "temp", "systolic", "diastolic", "pulse", "indicator"]
+            )
+        writer.writerow([timestamp, temp, systolic, diastolic, pulse, indicator])
+
+    return jsonify({"status": "ok"})
+
 # -------- MAIN -------- #
 if __name__ == "__main__":
     socketio.run(
