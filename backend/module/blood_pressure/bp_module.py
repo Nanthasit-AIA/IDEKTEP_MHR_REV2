@@ -32,6 +32,32 @@ def initialize_serial(usb_port):
 
 def save_image(region, filename):
     cv2.imwrite(filename, region)
+def ensure_gpio_bcm():
+    """
+    Ensure GPIO is in BCM mode.
+    Handles weird states like mode == -1 from the RPi lib.
+    """
+    mode = GPIO.getmode()
+
+    # Some libs return -1 for "no mode / unknown"
+    if mode not in (GPIO.BCM, GPIO.BOARD, None):
+        # Bad/unknown mode → reset
+        info(f"GPIO.getmode() returned unexpected value {mode}, calling GPIO.cleanup()")
+        try:
+            GPIO.cleanup()
+        except Exception as e:
+            error(f"GPIO.cleanup() in ensure_gpio_bcm failed: {e}")
+        mode = None
+
+    if mode is None:
+        # Fresh start → choose BCM for this project
+        GPIO.setmode(GPIO.BCM)
+    elif mode == GPIO.BOARD:
+        # Another module previously set BOARD → reset & switch to BCM
+        info("GPIO mode is BOARD, switching to BCM via cleanup()")
+        GPIO.cleanup()
+        GPIO.setmode(GPIO.BCM)
+    # if mode == GPIO.BCM: nothing to do
 
 def bp_gpio_setup(socketio, RELAY_1, RELAY_2):
     try:
@@ -41,19 +67,8 @@ def bp_gpio_setup(socketio, RELAY_1, RELAY_2):
             'bp_indicator': {'state': 'm'}
         })
 
-        # ---- Safe / idempotent GPIO mode handling ----
-        current_mode = GPIO.getmode()
-        if current_mode is not None and current_mode != GPIO.BCM:
-            # Some other code (or previous run) used a different mode → reset everything
-            info(f"GPIO mode was {current_mode}, calling GPIO.cleanup() before re-init")
-            try:
-                GPIO.cleanup()
-            except Exception as e:
-                error(f"GPIO.cleanup() before re-init failed: {e}")
-
-        # After cleanup, or when mode was None, set BCM once
-        if GPIO.getmode() is None:
-            GPIO.setmode(GPIO.BCM)
+        # ---- Normalize GPIO mode and set BCM ----
+        ensure_gpio_bcm()
 
         socketio.emit('bp_update', {
             'bp_state': {'state': 'GPIO setup'},
@@ -77,18 +92,24 @@ def bp_gpio_setup(socketio, RELAY_1, RELAY_2):
         })
 
     except Exception as e:
-        # Catch *any* error and report via Socket.IO
+        # Handle unexpected exceptions
         error_message = f"Unexpected error during GPIO setup: {e}"
         error(error_message)
         socketio.emit('bp_update', {
             'bp_state': {'state': 'GPIO config-error'},
             'bp_indicator': {'state': 'e'}
         })
-        # Re-raise so Flask still returns 500 and you see the stack trace
         raise
 
 def bp_gpio_clear(RELAY_1=None, RELAY_2=None, cleanup=True):
     try:
+        mode = GPIO.getmode()
+        # If no mode / invalid mode, there's nothing meaningful to do
+        if mode is None or mode == -1:
+            info("bp_gpio_clear: GPIO mode is None/-1, skipping outputs and cleanup")
+            return
+
+        # Safely switch relays off if pins and mode exist
         if RELAY_1 is not None:
             GPIO.output(RELAY_1, GPIO.HIGH)
         if RELAY_2 is not None:
@@ -99,6 +120,7 @@ def bp_gpio_clear(RELAY_1=None, RELAY_2=None, cleanup=True):
         info("BP GPIO cleanup completed.")
     except Exception as e:
         error(f"GPIO cleanup error: {e}")
+
 
         
 def relay_control(socketio, relay, RELAY_1=17, RELAY_2=18):
@@ -339,7 +361,6 @@ def bp_controller(socketio: SocketIO, measure_time, ocr_cam, usb_port):
     RELAY_1 = 17
     RELAY_2 = 18
 
-    # default result structure
     bp_data = {
         "systolic": 0,
         "diastolic": 0,
@@ -349,13 +370,10 @@ def bp_controller(socketio: SocketIO, measure_time, ocr_cam, usb_port):
     }
 
     try:
-        # --- GPIO setup ---
         bp_gpio_setup(socketio, RELAY_1, RELAY_2)
 
-        # --- Serial & state control ---
         ocr_triggered = bp_control(socketio, usb_port)
 
-        # --- OCR + acceptable range ---
         bp_result, bp_msg = bp_process_acceptable(
             socketio, ocr_triggered, measure_time, ocr_cam
         )
@@ -364,11 +382,11 @@ def bp_controller(socketio: SocketIO, measure_time, ocr_cam, usb_port):
         bp_data["success"] = (bp_msg == "Completed")
 
         return bp_data
-
     finally:
         # Always attempt to clean up GPIO so next call starts clean
         try:
             bp_gpio_clear(RELAY_1, RELAY_2, cleanup=True)
         except Exception as e:
             error(f"GPIO cleanup error during bp_controller: {e}")
+
 
