@@ -54,7 +54,7 @@ onMounted(() => {
       drawerStatus.value = 'opening';
       bpStateText.value = 'Opening Drawer...';
       bpIndicator.value = 'm';            // 🔹 indicator = moving while drawer opens
-    }, 10000);
+    }, 2000);
   });
 
   // Drawer status from backend (trigger_drawer in app.py)
