@@ -45,12 +45,7 @@ def bp_gpio_setup(socketio, RELAY_1, RELAY_2):
         # GPIO.cleanup()
 
         # Set up GPIO mode to BCM (alternatively, use GPIO.BOARD as required)
-        current_mode = GPIO.getmode()
-        if current_mode is None:
-            GPIO.setmode(GPIO.BCM)
-        elif current_mode != GPIO.BCM:
-            # Someone else set BOARD mode (or something else)
-            raise RuntimeError(f"GPIO already set to a different mode: {current_mode}")
+        GPIO.setmode(GPIO.BCM)
         # info("GPIO mode successfully set to BCM")
         socketio.emit('bp_update', {
                 'bp_state': {'state': 'GPIO setup'},
@@ -358,39 +353,39 @@ def bp_controller(socketio: SocketIO, measure_time, ocr_cam, usb_port):
         "success": False,
     }
 
-    try:
+    # try:
         # --- GPIO setup ---
-        try:
-            bp_gpio_setup(socketio, RELAY_1, RELAY_2)
-        except Exception as e:
-            # This is where your "Cannot determine SOC peripheral base address" happens
-            error(f"BP MEASUREMENT ERROR: {e}")
-            socketio.emit('bp_update', {
-                'bp_state': {'state': 'relay error'},
-                'bp_indicator': {'state': 'e'}
-            })
-            # Return gracefully without touching more GPIO
-            bp_data["msg"] = f"GPIO Error: {e}"
-            bp_data["success"] = False
-            return bp_data
+        # try:
+        #     bp_gpio_setup(socketio, RELAY_1, RELAY_2)
+        # except Exception as e:
+        #     # This is where your "Cannot determine SOC peripheral base address" happens
+        #     error(f"BP MEASUREMENT ERROR: {e}")
+        #     socketio.emit('bp_update', {
+        #         'bp_state': {'state': 'relay error'},
+        #         'bp_indicator': {'state': 'e'}
+        #     })
+        #     # Return gracefully without touching more GPIO
+        #     bp_data["msg"] = f"GPIO Error: {e}"
+        #     bp_data["success"] = False
+        #     return bp_data
+    bp_gpio_setup(socketio, RELAY_1, RELAY_2)
+    # --- Serial & state control ---
+    ocr_triggered = bp_control(socketio, usb_port)
 
-        # --- Serial & state control ---
-        ocr_triggered = bp_control(socketio, usb_port)
+    # --- OCR + check acceptable range ---
+    bp_result, bp_msg = bp_process_acceptable(
+        socketio, ocr_triggered, measure_time, ocr_cam
+    )
+    bp_data.update(bp_result)
+    bp_data["msg"] = bp_msg
+    bp_data["success"] = (bp_msg == "Completed")
 
-        # --- OCR + check acceptable range ---
-        bp_result, bp_msg = bp_process_acceptable(
-            socketio, ocr_triggered, measure_time, ocr_cam
-        )
-        bp_data.update(bp_result)
-        bp_data["msg"] = bp_msg
-        bp_data["success"] = (bp_msg == "Completed")
+    return bp_data
 
-        return bp_data
-
-    finally:
-        # Always try to cleanup GPIO, but safely
-        try:
-            bp_gpio_clear(RELAY_1, RELAY_2)
-        except Exception as e:
-            error(f"GPIO cleanup error during bp_controller: {e}")
+    # finally:
+    #     # Always try to cleanup GPIO, but safely
+    #     try:
+    #         # bp_gpio_clear(RELAY_1, RELAY_2)
+    #     except Exception as e:
+    #         error(f"GPIO cleanup error during bp_controller: {e}")
 
