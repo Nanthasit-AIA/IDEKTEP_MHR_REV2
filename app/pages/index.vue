@@ -23,11 +23,11 @@ const actionButtons = [
         <HeaderAnimate :message="headerMessages" />
 
         <!-- Title -->
-        <h1 class="text-[5rem] lg:text-[5rem] font-black text-center mb-92 leading-tight mt-20">
+        <h1 class="text-[5rem] lg:text-[5rem] font-black text-center mb-1 leading-tight mt-20">
             Robo Assistant Application
         </h1>
         <!-- Robot Image Center -->
-        <div class="absolute w-full top-60 flex justify-center mt-2">
+        <div class="mt-8 flex justify-center">
         <img
             src="/mhr_image.png"
             alt="Robot"
