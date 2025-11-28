@@ -37,35 +37,34 @@ def bp_gpio_setup(socketio, RELAY_1, RELAY_2):
     try:
         info("Starting BP GPIO Configuration")
         socketio.emit('bp_update', {
-                'bp_state': {'state': 'GPIO config'},
-                'bp_indicator': {'state': 'm'}
+            'bp_state': {'state': 'GPIO config'},
+            'bp_indicator': {'state': 'm'}
         })
 
-        # ---- Safe GPIO mode handling ----
+        # ---- Safe / idempotent GPIO mode handling ----
         current_mode = GPIO.getmode()
-        if current_mode is None:
-            # No mode yet → we choose BCM
+        if current_mode is not None and current_mode != GPIO.BCM:
+            # Some other code (or previous run) used a different mode → reset everything
+            info(f"GPIO mode was {current_mode}, calling GPIO.cleanup() before re-init")
+            try:
+                GPIO.cleanup()
+            except Exception as e:
+                error(f"GPIO.cleanup() before re-init failed: {e}")
+
+        # After cleanup, or when mode was None, set BCM once
+        if GPIO.getmode() is None:
             GPIO.setmode(GPIO.BCM)
-        elif current_mode != GPIO.BCM:
-            # Some other part of the code set BOARD or a different mode
-            error_msg = f"GPIO mode already set to {current_mode}, expected BCM"
-            error(error_msg)
-            socketio.emit('bp_update', {
-                'bp_state': {'state': 'GPIO mode error'},
-                'bp_indicator': {'state': 'e'}
-            })
-            # Stop here so we don't mis-address pins
-            raise RuntimeError(error_msg)
 
         socketio.emit('bp_update', {
-                'bp_state': {'state': 'GPIO setup'},
-                'bp_indicator': {'state': 'm'}
+            'bp_state': {'state': 'GPIO setup'},
+            'bp_indicator': {'state': 'm'}
         })
 
-        # Set up GPIO pins
+        # ---- Set up GPIO pins ----
         GPIO.setup(RELAY_1, GPIO.OUT)
         GPIO.setup(RELAY_2, GPIO.OUT)
 
+        # Assume active-low relay → HIGH = off
         GPIO.output(RELAY_1, GPIO.HIGH)
         GPIO.output(RELAY_2, GPIO.HIGH)
 
@@ -73,26 +72,19 @@ def bp_gpio_setup(socketio, RELAY_1, RELAY_2):
 
         info("BP GPIO Configuration Completed!")
         socketio.emit('bp_update', {
-                'bp_state': {'state': 'GPIO success'},
-                'bp_indicator': {'state': 'c'}
+            'bp_state': {'state': 'GPIO success'},
+            'bp_indicator': {'state': 'c'}
         })
-
-    except RuntimeError as e:
-        error_message = f"RuntimeError during GPIO setup: {e}"
-        error(error_message)
-        socketio.emit('bp_update', {
-                'bp_state': {'state': 'GPIO runtime-error'},
-                'bp_indicator': {'state': 'e'}
-        })
-        raise
 
     except Exception as e:
+        # Catch *any* error and report via Socket.IO
         error_message = f"Unexpected error during GPIO setup: {e}"
         error(error_message)
         socketio.emit('bp_update', {
-                'bp_state': {'state': 'GPIO config-error'},
-                'bp_indicator': {'state': 'e'}
+            'bp_state': {'state': 'GPIO config-error'},
+            'bp_indicator': {'state': 'e'}
         })
+        # Re-raise so Flask still returns 500 and you see the stack trace
         raise
 
 def bp_gpio_clear(RELAY_1=None, RELAY_2=None, cleanup=True):
@@ -347,6 +339,7 @@ def bp_controller(socketio: SocketIO, measure_time, ocr_cam, usb_port):
     RELAY_1 = 17
     RELAY_2 = 18
 
+    # default result structure
     bp_data = {
         "systolic": 0,
         "diastolic": 0,
@@ -373,7 +366,7 @@ def bp_controller(socketio: SocketIO, measure_time, ocr_cam, usb_port):
         return bp_data
 
     finally:
-        # Always try to cleanup GPIO, so next request starts clean
+        # Always attempt to clean up GPIO so next call starts clean
         try:
             bp_gpio_clear(RELAY_1, RELAY_2, cleanup=True)
         except Exception as e:
