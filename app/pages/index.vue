@@ -23,9 +23,17 @@ const actionButtons = [
         <HeaderAnimate :message="headerMessages" />
 
         <!-- Title -->
-        <h1 class="text-[5rem] lg:text-[5rem] font-black text-center mb-76 leading-tight mt-20">
+        <h1 class="text-[5rem] lg:text-[5rem] font-black text-center mb-92 leading-tight mt-20">
             Robo Assistant Application
         </h1>
+        <!-- Robot Image Center -->
+        <div class="absolute w-full top-60 flex justify-center mt-2">
+        <img
+            src="/mhr_image.png"
+            alt="Robot"
+            class="w-[350px] h-auto object-contain drop-shadow-xl mb-10"
+        />
+        </div>
 
         <!-- Buttons -->
         <MainActionButton :buttons="actionButtons" />
@@ -33,7 +41,7 @@ const actionButtons = [
         <!-- Footer -->
         <div class="mt-auto flex flex-col items-center justify-center pb-15">
 
-            <footer class="text-m text-black/70 mb-4">
+            <footer class="text-m text-black/70 mb-4 mt-10">
                 © 2025 Robo Assist Application. All rights reserved.
             </footer>
 

@@ -347,7 +347,7 @@ def irt_detect_cam(socketio: SocketIO, face_cam: int, usb_port: str, temp_offset
                         os.path.join(os.getcwd(), 'static', 'irt_image', 'heatmap_images.png')
                     )
 
-            if len(temp_data["temp_data_collect"]) == 10:
+            if len(temp_data["temp_data_collect"]) == 15:
                 temp_data_result = round(
                     sum(temp_data["temp_data_collect"]) / len(temp_data["temp_data_collect"]), 1
                 )

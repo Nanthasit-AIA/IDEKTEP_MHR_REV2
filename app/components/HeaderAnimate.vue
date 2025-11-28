@@ -49,7 +49,7 @@ onUnmounted(() => {
 
 <template>
     <div
-        class="w-full max-w-6xl h-20 bg-black text-white text-3xl font-bold px-10 py-7 rounded-2xl flex items-center gap-7">
+        class="w-full max-w-6xl h-20 bg-black text-white text-3xl font-bold px-10 py-7 mt-5 rounded-2xl flex items-center gap-7">
         <span class="text-3xl">🤖</span>
         <div class="mix-w-[400px]">
             {{ displayedText }}<span class="animate-pluse"> |</span>
