@@ -240,19 +240,18 @@ def read_temperature(serial_port):
         print(f"Unexpected error in temperature reading thread: {e}")
 
 def estimate_face_temp(temp_matrix: np.ndarray) -> float:
-    # assume temp_matrix is 16x16
-    h, w = temp_matrix.shape
-    # center indices (for 16: 6..10)
-    i0, i1 = 6, 10
-    j0, j1 = 6, 10
+    h, w = temp_matrix.shape  # should be 16x16
+    i0, i1 = h // 2 - 2, h // 2 + 2
+    j0, j1 = w // 2 - 2, w // 2 + 2
 
     center_patch = temp_matrix[i0:i1, j0:j1]
-    # Use average of the top N hottest pixels for stability
     flat = center_patch.flatten()
     flat_sorted = np.sort(flat)[::-1]
-    top_n = flat_sorted[:5]  # top 5 hottest
+    top_n = flat_sorted[:5]  # average of 5 hottest pixels
     return float(np.mean(top_n))
 
+def calibrate_to_body(raw_face_temp: float, CALIB_OFFSET=1.8) -> float:
+    return round(raw_face_temp + CALIB_OFFSET, 1)
 # ----------------------------
 #  MAIN DETECTOR / STREAM FUNCTION
 # ----------------------------
@@ -381,16 +380,19 @@ def irt_detect_cam(socketio: SocketIO, face_cam: int, usb_port: str, temp_offset
                 temp_matrix, raw_response = read_temperature(ser)
 
                 if temp_matrix is not None:
-                    temp_data_max = round(float(np.max(temp_matrix)) + temp_offset, 1)
+                    # 1) estimate forehead temp from IR matrix
+                    raw_face_temp = estimate_face_temp(temp_matrix)
+
+                    # 2) apply calibration to get body-equivalent temp
+                    temp_data_max = calibrate_to_body(raw_face_temp)
+
+                    # optional: keep raw min/mean for debug/visualization
                     temp_data_min = round(float(np.min(temp_matrix)), 1)
                     temp_data_mean = round(float(np.mean(temp_matrix)), 1)
-                    raw_max = float(np.max(temp_matrix))
-                    print("RAW_IR:", raw_max)
-                    raw_face_temp = estimate_face_temp(temp_matrix)
-                    print("RAW_FACE:", raw_face_temp)
-
 
                     temp_data["temp_data_collect"].append(temp_data_max)
+                    print("RAW_FACE:", raw_face_temp, "CALIB:", temp_data_max)
+                    print("RAW_MIN:", temp_data_min, "RAW_MEAN:", temp_data_mean)
 
                     socketio.emit('irt_data', {
                         'temp_max': temp_data_max,
