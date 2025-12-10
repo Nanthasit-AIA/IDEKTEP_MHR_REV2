@@ -112,40 +112,92 @@ def get_center_frame(frame, roi_size=350):
 def save_image(region, filename):
     cv2.imwrite(filename, region)
 
-def ir_heatmap(frame, data):
-    # NORMALIZE DATA TO [0, 1] AND INVERT TO COLOR MAP
-    data_normalized = (data - np.min(data)) / (np.max(data) - np.min(data))
-    data_normalized = 1 - data_normalized
+def ir_heatmap(frame, data, alpha=0.6, show_text=True, show_grid=True):
+    """
+    Render a 16x16 IR temperature matrix as a heatmap over a frame.
 
-    # CRETE HEATMAP AND CONVERT TO 8-BIT
-    colormap = plt.cm.jet
-    heatmap = colormap(data_normalized)
-    heatmap = (heatmap[:, :, :3] * 255).astype(np.uint8)
-    grid_size = 16
-    height, width, _ = frame.shape
-    # heatmap_resized = cv2.resize(heatmap, (width, height), interpolation=cv2.INTER_LINEAR)
-    heatmap_resized = cv2.resize(heatmap, (grid_size, grid_size), interpolation=cv2.INTER_NEAREST)
-    heatmap_resized = cv2.resize(heatmap_resized, (width, height), interpolation=cv2.INTER_NEAREST)
-    
-    center, (x_start, y_start, x_end, y_end) = get_center_frame(frame, roi_size=350)
-    cv2.rectangle(frame, (x_start, y_start), (x_end, y_end), (255, 255, 255), 2)
+    Parameters
+    ----------
+    frame : np.ndarray
+        BGR image (e.g. ROI from camera).
+    data : array-like
+        16x16 temperature matrix (float).
+    alpha : float
+        Weight of heatmap vs original frame (0..1).
+    show_text : bool
+        If True, draw temperature values in each cell.
+    show_grid : bool
+        If True, draw grid lines for 16x16 cells.
+    """
 
-    blended = cv2.addWeighted(frame, 0.5, heatmap_resized, 0.5, 0)
+    # --- Ensure numpy float32 array ---
+    data_arr = np.array(data, dtype=np.float32)
 
-    offset_pixel = 4
-    cell_width = width // grid_size
-    cell_height = height // grid_size
+    # --- Normalize to 0–255 for applyColorMap ---
+    min_v = float(np.min(data_arr))
+    max_v = float(np.max(data_arr))
+
+    if max_v - min_v < 1e-6:
+        # Avoid divide-by-zero if all values are (almost) equal
+        norm = np.zeros_like(data_arr, dtype=np.uint8)
+    else:
+        norm = ((data_arr - min_v) / (max_v - min_v) * 255.0).astype(np.uint8)
+
+    # --- Resize to frame size using nearest neighbor (so each sensor cell becomes a block) ---
+    h, w = frame.shape[:2]
+    heat_resized = cv2.resize(norm, (w, h), interpolation=cv2.INTER_NEAREST)
+
+    # --- Apply JET colormap directly in OpenCV ---
+    heat_color = cv2.applyColorMap(heat_resized, cv2.COLORMAP_JET)
+
+    # --- Blend with original frame ---
+    alpha = float(alpha)
+    alpha = max(0.0, min(1.0, alpha))
+    blended = cv2.addWeighted(heat_color, alpha, frame, 1.0 - alpha, 0)
+
+    # --- Optional: draw temperature text + grid ---
+    grid_h, grid_w = data_arr.shape  # should be 16 x 16
+    cell_w = w / grid_w
+    cell_h = h / grid_h
+
     font = cv2.FONT_HERSHEY_SIMPLEX
-    font_scale = 0.4
+    font_scale = 0.35
     font_thickness = 1
     text_color = (255, 255, 255)
 
-    for i in range(offset_pixel, grid_size + offset_pixel):
-        for j in range(offset_pixel, grid_size + offset_pixel):
-            temp_value = f"{data[i-offset_pixel, j-offset_pixel]:.1f}" 
-            x = j * cell_width + cell_width // 4
-            y = i * cell_height + cell_height // 2
-            cv2.putText(blended, temp_value, (x - 5, y), font, font_scale, text_color, font_thickness, cv2.LINE_AA)
+    if show_grid:
+        # Vertical lines
+        for j in range(1, grid_w):
+            x = int(j * cell_w)
+            cv2.line(blended, (x, 0), (x, h), (255, 255, 255), 1, lineType=cv2.LINE_AA)
+        # Horizontal lines
+        for i in range(1, grid_h):
+            y = int(i * cell_h)
+            cv2.line(blended, (0, y), (w, y), (255, 255, 255), 1, lineType=cv2.LINE_AA)
+
+    if show_text:
+        for i in range(grid_h):
+            for j in range(grid_w):
+                temp_value = f"{data_arr[i, j]:.1f}"
+
+                # Center of the cell
+                x_center = int(j * cell_w + cell_w / 2)
+                y_center = int(i * cell_h + cell_h / 2)
+
+                # Slight offset so text looks centered
+                x_text = x_center - 12
+                y_text = y_center + 4
+
+                cv2.putText(
+                    blended,
+                    temp_value,
+                    (x_text, y_text),
+                    font,
+                    font_scale,
+                    text_color,
+                    font_thickness,
+                    cv2.LINE_AA
+                )
 
     return blended
 
