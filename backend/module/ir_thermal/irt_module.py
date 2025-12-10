@@ -1,20 +1,18 @@
-import os
-import sys
-import time
-import serial
-import cv2 
+import os, sys, time, serial, cv2
 import numpy as np
 import matplotlib.pyplot as plt 
 
-from logging import info, error
 from flask_socketio import SocketIO 
 from picamera2 import Picamera2  
 
+from logging import info, error
 from utils import clear_and_ensure_folder, calculate_centered_roi
 
 np.set_printoptions(threshold=sys.maxsize)
 
-# ------------- SERIAL & PROTOCOL HELPERS ------------- #
+# ----------------------------
+#  SERIAL & PROTOCOL HELPERS
+# ----------------------------
 
 def initialize_serial(usb_port):
     try:
@@ -33,15 +31,13 @@ def initialize_serial(usb_port):
         raise
     
 def build_request(start_address, num_registers):
-    # Validate input ranges
     if not (0 <= start_address <= 259):
-        raise ValueError(f"start_address must be in the range 0–259. Got {start_address}.")
+        raise ValueError(f"start_address must be in the range 0-259. Got {start_address}.")
     if not (1 <= num_registers <= 259):
-        raise ValueError(f"num_registers must be in the range 1–259. Got {num_registers}.")
+        raise ValueError(f"num_registers must be in the range 1-259. Got {num_registers}.")
     
-    # Construct the request frame
     request = bytearray()
-    request.append(0x11)  # START byte
+    request.append(0x11)  # START_BYTE
 
     # Start Address (2 bytes)
     request.append((start_address >> 8) & 0xFF)  # MSB
@@ -51,9 +47,8 @@ def build_request(start_address, num_registers):
     request.append((num_registers >> 8) & 0xFF)  # MSB
     request.append(num_registers & 0xFF)         # LSB
 
-    request.append(0x98)  # END byte
+    request.append(0x98)  # END_BYTE
 
-    # Log the constructed request
     # info(f"Request: {request.hex()}")  # Log as a hex string for readability
     info(f"Request: {request}")  # Log as a hex string for readability
     return request
@@ -61,7 +56,7 @@ def build_request(start_address, num_registers):
 def parse_response_data(data):
     data_bytes = list(data)
 
-    # Extract START bytes
+    # EXTRACT START BYTES
     start_msb = data_bytes[0]
     start_lsb = data_bytes[1]
     start_value = (start_msb << 8) | start_lsb
@@ -75,7 +70,7 @@ def parse_response_data(data):
         temp_data.append(round(temperature * 0.1, 2))
         index += 2
 
-    # Extract END bytes
+    # EXTRACT END BYTES
     end_msb = data_bytes[-2]
     end_lsb = data_bytes[-1]
     end_value = (end_msb << 8) | end_lsb
@@ -87,6 +82,10 @@ def parse_response_data(data):
 
     response_matrix = np.array(response_list).reshape(16, 16)
     return response_matrix
+
+# ----------------------------
+#  IR TEMPERATURE CONTROL
+# ----------------------------
 
 def extract_temp_data(data):
     flattened_data = np.array(data).flatten()
@@ -101,7 +100,7 @@ def extract_temp_data(data):
     return temperature_matrix
 
 def get_center_frame(frame, roi_size=350):
-    # This function calculates the ROI (Region of Interest) center
+    # CALCULATE ROI
     height, width, _ = frame.shape
     center_x, center_y = width // 2, height // 2
     x_start = max(0, center_x - roi_size // 2)
@@ -114,39 +113,36 @@ def save_image(region, filename):
     cv2.imwrite(filename, region)
 
 def ir_heatmap(frame, data):
-    # Normalize data to the range [0, 1] and invert it for the colormap
+    # NORMALIZE DATA TO [0, 1] AND INVERT TO COLOR MAP
     data_normalized = (data - np.min(data)) / (np.max(data) - np.min(data))
     data_normalized = 1 - data_normalized
 
-    # Create a heatmap using matplotlib's colormap and convert to 8-bit color
+    # CRETE HEATMAP AND CONVERT TO 8-BIT
     colormap = plt.cm.jet
     heatmap = colormap(data_normalized)
     heatmap = (heatmap[:, :, :3] * 255).astype(np.uint8)
-
-    # Resize the heatmap to match the frame dimensions
+    grid_size = 16
     height, width, _ = frame.shape
-    heatmap_resized = cv2.resize(heatmap, (width, height), interpolation=cv2.INTER_LINEAR)
+    # heatmap_resized = cv2.resize(heatmap, (width, height), interpolation=cv2.INTER_LINEAR)
+    heatmap_resized = cv2.resize(heatmap, (grid_size, grid_size), interpolation=cv2.INTER_NEAREST)
+    heatmap_resized = cv2.resize(heatmap_resized, (width, height), interpolation=cv2.INTER_NEAREST)
     
-    # Optional: Define a Region of Interest (ROI) (remove this if you don't need ROI)
-    # center, (x_start, y_start, x_end, y_end) = get_center_frame(frame, roi_size=350)
-    # cv2.rectangle(frame, (x_start, y_start), (x_end, y_end), (255, 255, 255), 2)
+    center, (x_start, y_start, x_end, y_end) = get_center_frame(frame, roi_size=350)
+    cv2.rectangle(frame, (x_start, y_start), (x_end, y_end), (255, 255, 255), 2)
 
-    # Blend the original frame with the resized heatmap
     blended = cv2.addWeighted(frame, 0.5, heatmap_resized, 0.5, 0)
 
-    # Add temperature values to the heatmap
     offset_pixel = 4
-    grid_size = 16  # Assuming data is 16x16
     cell_width = width // grid_size
     cell_height = height // grid_size
     font = cv2.FONT_HERSHEY_SIMPLEX
-    font_scale = 0.25
+    font_scale = 0.4
     font_thickness = 1
-    text_color = (255, 255, 255)  # White text for visibility
+    text_color = (255, 255, 255)
 
     for i in range(offset_pixel, grid_size + offset_pixel):
         for j in range(offset_pixel, grid_size + offset_pixel):
-            temp_value = f"{data[i-offset_pixel, j-offset_pixel]:.1f}"  # Format temperature values
+            temp_value = f"{data[i-offset_pixel, j-offset_pixel]:.1f}" 
             x = j * cell_width + cell_width // 4
             y = i * cell_height + cell_height // 2
             cv2.putText(blended, temp_value, (x - 5, y), font, font_scale, text_color, font_thickness, cv2.LINE_AA)
@@ -163,36 +159,27 @@ def read_temperature(serial_port):
     temp_matrix = None
 
     try:
-        # Build the request packet
         request_packet = build_request(start_address, num_registers)
-        serial_port.write(request_packet)  # Send the request
+        serial_port.write(request_packet) 
 
-        # Read the response from the sensor
         response = serial_port.read(num_of_byte)
         # info(f"Response: {response}")
 
-        # Check if the response is valid
         if response is not None:
             try:
                 info(f"Debug: {len(response)} >= 4 {len(response) >= 4}, {response[0]} == 22 {response[0] == 22}, {response[1]} == 152 {response[1] == 152}, {response[-2]} == 26 {response[-2] == 26}, {response[-1]} == 156 {response[-1] == 156}")
 
-                # Validate response length and markers
                 if len(response) >= 4 and response[0] == 22 and response[1] == 152 and response[-2] == 26 and response[-1] == 156:
-                    # Parse the response and extract temperature data
                     response = parse_response_data(response)
                     temp_matrix = extract_temp_data(response)
                     
-                # Wait for at least 100ms before the next request
-                time.sleep(0.1)  # Ensure minimum delay between requests
+                time.sleep(0.1) 
                 
                 return temp_matrix, response
-                
             except Exception as parse_error:
                 print(f"Error while parsing response data: {parse_error}")
         else:
             print("Error: No response received from the serial port.")
-
-        # Wait for at least 100ms before the next request if there's no response
         time.sleep(0.1)
 
     except serial.SerialException as e:
@@ -200,8 +187,9 @@ def read_temperature(serial_port):
     except Exception as e:
         print(f"Unexpected error in temperature reading thread: {e}")
 
-
-# ------------- MAIN DETECTOR / STREAM FUNCTION ------------- #
+# ----------------------------
+#  MAIN DETECTOR / STREAM FUNCTION
+# ----------------------------
 
 def irt_detect_cam(socketio: SocketIO, face_cam: int, usb_port: str, temp_offset: float = 1.5):
     """
@@ -214,13 +202,12 @@ def irt_detect_cam(socketio: SocketIO, face_cam: int, usb_port: str, temp_offset
     """
 
     time.sleep(1)
+    ser = None
+    picam2 = None
 
     temp_data = {
         "temp_data_collect": []
     }
-
-    ser = None
-    picam2 = None
 
     try:
         ser = initialize_serial(usb_port)
@@ -334,7 +321,6 @@ def irt_detect_cam(socketio: SocketIO, face_cam: int, usb_port: str, temp_offset
 
                     temp_data["temp_data_collect"].append(temp_data_max)
 
-                    # Emit interim data (no final result yet)
                     socketio.emit('irt_data', {
                         'temp_max': temp_data_max,
                         'temp_min': temp_data_min,
@@ -408,7 +394,6 @@ def irt_detect_cam(socketio: SocketIO, face_cam: int, usb_port: str, temp_offset
                 'irt_indicator': {'state': 'e'}
             })
     finally:
-        # Ensure resources are closed
         try:
             if ser is not None and ser.is_open:
                 ser.close()
