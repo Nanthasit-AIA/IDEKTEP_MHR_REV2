@@ -227,7 +227,8 @@ const displayTempResult = computed(() => {
                             <!-- Temperature Box -->
                             <div class="absolute bottom-3 left-1/2 transform -translate-x-1/2 bg-black rounded-2xl px- py-6 flex items-center justify-between w-[90%]"
                                 style="min-width: 60%;">
-                                <span class="text-white text-2xl font-bold ml-10">
+                                <i class="fi fi-rs-temperature-high text-md flex items-center justify-center ml-10 text-2xl" />
+                                <span class="text-white text-2xl font-bold ">
                                     Temperature : {{ displayTempResult }} °C
                                 </span>
                                 <span v-if="irtState.state !== 'Complete'"

@@ -448,21 +448,21 @@ onMounted(() => {
                 <div class="flex flex-col md:flex-row items-center justify-center gap-8 pt-4 py-48">
                   <div
                     class="absolute w-[70%] top-20 bg-black bg-opacity-100 rounded-2xl py-2 mt-2 flex items-center px-5 hover:scale-110">
-                    <span class="text-white text-2xl mr-4">🌡️</span>
+                    <i class="fi fi-rs-temperature-high text-md flex items-center justify-center mr-4 text-2xl" />
                     <span class="text-white text-2xl font-sm w-32 mr-20">Temperature</span>
                     <span class="text-white text-4xl font-sm mr-2 ml-auto text-right">{{ formattedTempSummary }}</span>
                     <span class="text-white text-xl w-16 ml-auto">°C</span>
                   </div>
                   <div
                     class="absolute w-[70%] top-35 bg-black bg-opacity-100 rounded-2xl py-2 mt-2 flex items-center px-5 hover:scale-110">
-                    <span class="text-white text-2xl mr-4">🩸</span>
+                    <i class="fi fi-rs-blood text-md flex items-center justify-center mr-4 text-2xl" />
                     <span class="text-white text-2xl font-sm w-32 mr-20">SYS</span>
                     <span class="text-white text-4xl font-sm  mr-2 ml-auto text-right">{{ sysSummary }}</span>
                     <span class="text-white text-xl w-16 ml-auto">mmHg</span>
                   </div>
                   <div
                     class="absolute w-[70%] top-50 bg-black bg-opacity-100 rounded-2xl py-2 mt-2 flex items-center px-5 hover:scale-110">
-                    <span class="text-white text-2xl mr-4">🩸</span>
+                    <i class="fi fi-rs-blood text-md flex items-center justify-center mr-4 text-2xl" />
                     <span class="text-white text-2xl font-sm w-32 mr-20">DIA</span>
                     <span class="text-white text-4xl font-sm mr-2 ml-auto text-right">{{ diaSummary }}</span>
                     <span class="text-white text-xl w-16 ml-auto">mmHg</span>
