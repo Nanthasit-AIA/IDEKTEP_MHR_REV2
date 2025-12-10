@@ -59,7 +59,7 @@ def trigger_drawer(data, value=None):
         d_status = 0
         d_number = 1
         drawer_controller(port, baudrate, d_status, d_number)
-        time.sleep(5)
+        time.sleep(10)
         socketio.emit("mhr_status", {"status": "1DrawerOpen"})
 
     elif data["data"] == "med_1DrawerClose":
