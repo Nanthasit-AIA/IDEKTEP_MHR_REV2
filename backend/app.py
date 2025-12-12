@@ -4,24 +4,23 @@ from flask_socketio import SocketIO
 from module.ir_thermal.irt_module import irt_detect_cam
 from module.blood_pressure.bp_module import bp_controller
 from module.drawer_control.drawer_module import drawer_controller
+from decorators import logger, timeit_log
 
 import time
-from logging import info, error
-from coloredlogs import install
 import os
 import csv
 from datetime import datetime
 # from module.face_recognition.face_verify import stream_face_collection  # adjust import path
 
-log_format = "%(asctime)s - %(hostname)s:%(username)s:%(programname)s - %(levelname)s: %(message)s"
-install(level="info", format=log_format)
-
 USB_PORT = "/dev/ttyUSB1"
-BP_PORT = "/dev/ttyUSB0"   # ✅ fixed: added leading slash
+BP_PORT = "/dev/ttyUSB0" 
 FACE_CAM = 0
 OCR_CAM = 1
 
-# --------------- APP SETUP -------------- #
+# ----------------------------
+#  APPLICATION SETUP
+# ----------------------------
+
 app = Flask(__name__, static_folder="static")
 CORS(app)
 
@@ -31,12 +30,15 @@ socketio = SocketIO(
     async_mode="threading"
 )
 
-# -------- IRT MJPEG STREAM -------- #
+# ----------------------------
+#  IRT MJPEG STREAM
+# ----------------------------
+
 @app.get("/video_feed")
 def video_feed():
     """
-    MJPEG stream endpoint.
-    Frontend (HTML) example:
+    MJPEG Stream Endpoint.
+    Frontend (HTML) Example:
       <img src="http://localhost:5000/video_feed">
     """
     return Response(
@@ -49,11 +51,12 @@ def video_feed():
         mimetype="multipart/x-mixed-replace; boundary=frame"
     )
 
-# -------- DRAWER CONTROL (used by bp_measurement.vue) -------- #
-def trigger_drawer(data, value=None):
-    port = "/dev/ttyACM0"
-    baudrate = 115200
-    info(data["data"])
+# ----------------------------
+#  DRAWER CONTROL
+# ----------------------------
+
+def trigger_drawer(data, port="/dev/ttyACM0", baudrate = 115200): 
+    logger.info(data["data"])
 
     if data["data"] == "med_1DrawerOpen":
         d_status = 0
@@ -65,20 +68,22 @@ def trigger_drawer(data, value=None):
     elif data["data"] == "med_1DrawerClose":
         d_status = 1
         d_number = 1
-        time.sleep(1)      # small delay before closing
+        time.sleep(1)    
         drawer_controller(port, baudrate, d_status, d_number)
         time.sleep(1)
         socketio.emit("mhr_status", {"status": "1DrawerClose"})
 
     else:
-        error(f"Unknown drawer command: {data['data']}")
+        logger.error(f"Unknown drawer command: {data['data']}")
 
 @socketio.on("drawer_control")
 def handle_drawer_control(data):
-    """Receive drawer commands from frontend."""
     trigger_drawer(data)
 
-# -------- BP MEASUREMENT API (called when user clicks Measurement) -------- #
+# ----------------------------
+#  BP MEASUREMENT API
+# ----------------------------
+
 @app.post("/api/bp_measurement")
 def api_bp_measurement():
     """

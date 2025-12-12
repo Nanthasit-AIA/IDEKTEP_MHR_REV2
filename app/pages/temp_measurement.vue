@@ -48,6 +48,26 @@ const videoUrl = ref("http://localhost:5000/video_feed");
 // 👉 when detection finished, backend sends this
 const resultImageUrl = ref<string | null>(null);
 
+// 🎯 ROI calculation for face detection frame
+const screenWidth = 640;
+const screenHeight = 480;
+
+const calculateCenteredRoi = (
+    width: number, 
+    height: number, 
+    widthPercent: number = 0.7, 
+    heightPercent: number = 0.7
+) => {
+    const roiWidth = Math.floor(width * widthPercent);
+    const roiHeight = Math.floor(height * heightPercent);
+    const roiX = Math.floor((width - roiWidth) / 2);
+    const roiY = Math.floor((height - roiHeight) / 2);
+    
+    return { x: roiX, y: roiY, width: roiWidth, height: roiHeight };
+};
+
+const roi = computed(() => calculateCenteredRoi(screenWidth, screenHeight));
+
 let socket: Socket | null = null;
 let autoNavigateTimeout: ReturnType<typeof setTimeout> | null = null;
 
@@ -66,8 +86,6 @@ onMounted(() => {
         irtData.value = payload;
     });
 
-    // ✅ listen to combined state + indicator from backend
-    //    payload shape: { irt_state: { state: string }, irt_indicator: { state: 'm' | 'c' | 'e' } }
     socket.on("irt_update", (payload: { irt_state: IrtState; irt_indicator: IrtIndicator }) => {
         irtState.value = payload.irt_state;
         irtIndicator.value = payload.irt_indicator;
@@ -76,7 +94,7 @@ onMounted(() => {
 
         if (state === "Measuring") {
             measuring.value = true;
-            resultImageUrl.value = null; // clear old result when new measurement starts
+            resultImageUrl.value = null;
             videoActive.value = true;
         } else if (
             state === "Complete" ||
@@ -86,12 +104,9 @@ onMounted(() => {
             measuring.value = false;
         }
 
-        // ✅ auto-stop video and schedule navigation when complete
-        // ✅ auto-stop video and schedule navigation when complete
         if (state === "Complete") {
             videoActive.value = false;
 
-            // 🔹 store final temperature for wellness summary
             const rawTemp = irtData.value.temp_result;
             let storedTemp = "";
 
@@ -106,7 +121,6 @@ onMounted(() => {
                 }
             }
 
-            // if error, null, NaN, or 0 → keep as empty (will show "--")
             sessionStorage.setItem("wellness_temp", storedTemp);
 
             if (!autoNavigateTimeout) {
@@ -117,9 +131,7 @@ onMounted(() => {
         }
     });
 
-    // 🔹 listen for result image
     socket.on("irt_result", (payload: { image_url: string }) => {
-        // combine backend host + relative URL
         resultImageUrl.value = `http://localhost:5000${payload.image_url}`;
         console.log("IRT result image:", resultImageUrl.value);
     });
@@ -137,24 +149,20 @@ onUnmounted(() => {
 });
 
 const doMeasurement = () => {
-    // Start a new measurement: show video, clear old result
     resultImageUrl.value = null;
     videoActive.value = true;
     irtState.value.state = "Measuring";
 };
 
 const handleMeasurementClick = () => {
-    // ✅ If measurement already complete, go to BP measurement
     if (irtState.value.state === "Complete") {
         router.push('/bp_measurement');
         return;
     }
-    // Otherwise start / restart measurement
     doMeasurement();
 };
 
 const indicatorClass = computed(() => {
-    // ✅ now controlled by irtIndicator, not irtState
     switch (irtIndicator.value.state) {
         case "c":
             return "bg-green-400";
@@ -168,7 +176,6 @@ const indicatorClass = computed(() => {
 });
 
 const buttonLabel = computed(() => {
-    // ✅ no more “Stop” label
     const state = irtState.value.state;
     if (state === "Measuring") return "Measuring...";
     if (state === "Complete") return "Measured";
@@ -182,7 +189,6 @@ const displayTempResult = computed(() => {
     return irtData.value.temp_result;
 });
 </script>
-
 
 <template>
     <div
@@ -202,26 +208,150 @@ const displayTempResult = computed(() => {
                     </button>
                     <button @click="router.push('/bp_measurement')"
                         class="absolute flex items-center right-0 top-0 justify-center w-32 h-16 bg-gray-0 rounded-full hover:bg-gray-400 transition">
-
                     </button>
 
                     <!-- Camera Frame  -->
                     <div class="flex flex-col items-center justify-center">
                         <div class="w-[640px] h-[640px] bg-gray-300 rounded-2xl overflow-hidden flex flex-col items-center justify-center relative"
                             style="aspect-ratio: 1;">
+                            
+                            <!-- 1) Show result image when available (no ROI frame) -->
                             <template v-if="resultImageUrl">
                                 <img :src="resultImageUrl" alt="IRT Heatmap Result"
                                     class="w-full h-full object-cover" />
                             </template>
 
-                            <!-- 2) Otherwise show live video if active -->
+                            <!-- 2) Show live video with circular ROI overlay -->
                             <template v-else-if="videoActive">
-                                <img :src="videoUrl" alt="IR Camera Stream" class="w-full h-full object-cover" />
+                                <div class="relative w-full h-full">
+                                    <img :src="videoUrl" alt="IR Camera Stream" class="w-full h-full object-cover" />
+                                    
+                                    <!-- 🎯 Circular Face Detection ROI with Gray Overlay -->
+                                    <svg class="absolute top-0 left-0 w-full h-full pointer-events-none"
+                                         :viewBox="`0 0 ${screenWidth} ${screenHeight}`"
+                                         preserveAspectRatio="none">
+                                        
+                                        <defs>
+                                            <!-- Define a mask: white circle = visible, black = hidden -->
+                                            <mask id="circleMask">
+                                                <rect width="100%" height="100%" fill="white"/>
+                                                <circle 
+                                                    :cx="screenWidth / 2" 
+                                                    :cy="screenHeight / 2" 
+                                                    :r="Math.min(roi.width, roi.height) / 2"
+                                                    fill="black"
+                                                />
+                                            </mask>
+                                        </defs>
+                                        
+                                        <!-- Gray overlay covering everything except the circle -->
+                                        <rect 
+                                            width="100%" 
+                                            height="100%" 
+                                            fill="rgb(209, 213, 219)"
+                                            fill-opacity="0.7"
+                                            mask="url(#circleMask)"
+                                        />
+                                        
+                                        <!-- Outer white border for circle -->
+                                        <circle 
+                                            :cx="screenWidth / 2" 
+                                            :cy="screenHeight / 2" 
+                                            :r="Math.min(roi.width, roi.height) / 2 + 3"
+                                            fill="none"
+                                            stroke="white"
+                                            stroke-width="6"
+                                        />
+                                        
+                                        <!-- Inner red circle border -->
+                                        <circle 
+                                            :cx="screenWidth / 2" 
+                                            :cy="screenHeight / 2" 
+                                            :r="Math.min(roi.width, roi.height) / 2"
+                                            fill="none"
+                                            stroke="#ef4444"
+                                            stroke-width="3"
+                                        />
+                                        
+                                        <!-- Animated scanning line (optional visual effect) -->
+                                        <circle 
+                                            :cx="screenWidth / 2" 
+                                            :cy="screenHeight / 2" 
+                                            :r="Math.min(roi.width, roi.height) / 2 - 10"
+                                            fill="none"
+                                            stroke="#ef4444"
+                                            stroke-width="2"
+                                            stroke-dasharray="10,5"
+                                            opacity="0.5"
+                                        >
+                                            <animateTransform
+                                                attributeName="transform"
+                                                type="rotate"
+                                                from="0 320 240"
+                                                to="360 320 240"
+                                                dur="3s"
+                                                repeatCount="indefinite"
+                                            />
+                                        </circle>
+                                        
+                                    </svg>
+                                </div>
                             </template>
 
-                            <!-- 3) Otherwise show placeholder text -->
+                            <!-- 3) Show placeholder with circular ROI frame when camera inactive -->
                             <template v-else>
-                                <p class="text-black text-xl font-medium">Camera not Active</p>
+                                <div class="relative w-full h-full flex items-center justify-center">
+                                    <p class="text-black text-xl font-medium z-10">Camera not Active</p>
+                                    
+                                    <!-- 🎯 Circular Face Detection ROI with Gray Overlay -->
+                                    <svg class="absolute top-0 left-0 w-full h-full pointer-events-none"
+                                         :viewBox="`0 0 ${screenWidth} ${screenHeight}`"
+                                         preserveAspectRatio="none">
+                                        
+                                        <defs>
+                                            <!-- Define a mask: white circle = visible, black = hidden -->
+                                            <mask id="circleMaskInactive">
+                                                <rect width="100%" height="100%" fill="white"/>
+                                                <circle 
+                                                    :cx="screenWidth / 2" 
+                                                    :cy="screenHeight / 2" 
+                                                    :r="Math.min(roi.width, roi.height) / 2"
+                                                    fill="black"
+                                                />
+                                            </mask>
+                                        </defs>
+                                        
+                                        <!-- Gray overlay covering everything except the circle -->
+                                        <rect 
+                                            width="100%" 
+                                            height="100%" 
+                                            fill="rgb(209, 213, 219)"
+                                            fill-opacity="0.7"
+                                            mask="url(#circleMaskInactive)"
+                                        />
+                                        
+                                        <!-- Outer white border for circle -->
+                                        <circle 
+                                            :cx="screenWidth / 2" 
+                                            :cy="screenHeight / 2" 
+                                            :r="Math.min(roi.width, roi.height) / 2 + 3"
+                                            fill="none"
+                                            stroke="white"
+                                            stroke-width="6"
+                                        />
+                                        
+                                        <!-- Inner red circle border -->
+                                        <circle 
+                                            :cx="screenWidth / 2" 
+                                            :cy="screenHeight / 2" 
+                                            :r="Math.min(roi.width, roi.height) / 2"
+                                            fill="none"
+                                            stroke="#ef4444"
+                                            stroke-width="3"
+                                        />
+                                        
+                                    </svg>
+                                </div>
                             </template>
 
                             <!-- Temperature Box -->
