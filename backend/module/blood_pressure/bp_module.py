@@ -1,15 +1,13 @@
-from logging import info, error
-from flask_socketio import SocketIO
-from typing import Dict, Any, Tuple
-
-import serial #type:ignore
-import RPi.GPIO as GPIO 
-
-import pytesseract as tess
 import cv2, time, os
 import numpy as np
 from collections import Counter
-from picamera2 import Picamera2, CameraConfiguration #type:ignore
+from logging import info, error
+from flask_socketio import SocketIO
+
+import serial 
+import RPi.GPIO as GPIO 
+import pytesseract as tess
+from picamera2 import Picamera2, CameraConfiguration 
 
 from utils import clear_and_ensure_folder
 
@@ -17,112 +15,72 @@ tess.pytesseract.tesseract_cmd = r'/usr/bin/tesseract'
 
 bp_emp_data = {"systolic": 0, "diastolic": 0}
 
-def initialize_serial(usb_port):
+# ============================================================
+# NOTE : GPIO-SERIAL SETUP
+# ============================================================
+
+def Init_Serial(usb_port):
     try:
         connection = serial.Serial(
             port=usb_port,
             baudrate=9600,
             timeout=1
         )
-        info(f"Serial connection initialized on {usb_port}")
+        info(f"Serial connection init on {usb_port}")
         return connection
     except serial.SerialException as e:
-        error(f"Failed to initialize serial connection on {usb_port}: {e}")
+        error(f"Failed to Init serial connection on {usb_port}: {e}")
         raise
 
 def save_image(region, filename):
     cv2.imwrite(filename, region)
-def ensure_gpio_bcm():
-    """
-    Ensure GPIO is in BCM mode.
-    Handles weird states like mode == -1 from the RPi lib.
-    """
-    mode = GPIO.getmode()
 
-    # Some libs return -1 for "no mode / unknown"
-    if mode not in (GPIO.BCM, GPIO.BOARD, None):
-        # Bad/unknown mode → reset
-        info(f"GPIO.getmode() returned unexpected value {mode}, calling GPIO.cleanup()")
-        try:
-            GPIO.cleanup()
-        except Exception as e:
-            error(f"GPIO.cleanup() in ensure_gpio_bcm failed: {e}")
-        mode = None
-
-    if mode is None:
-        # Fresh start → choose BCM for this project
-        GPIO.setmode(GPIO.BCM)
-    elif mode == GPIO.BOARD:
-        # Another module previously set BOARD → reset & switch to BCM
-        info("GPIO mode is BOARD, switching to BCM via cleanup()")
-        GPIO.cleanup()
-        GPIO.setmode(GPIO.BCM)
-    # if mode == GPIO.BCM: nothing to do
-
-def bp_gpio_setup(socketio, RELAY_1, RELAY_2):
+def bp_gpio_Setup(socketio, RELAY_1, RELAY_2):
     try:
-        info("Starting BP GPIO Configuration")
+        info("Start BP-GPIO Configuration")
         socketio.emit('bp_update', {
             'bp_state': {'state': 'GPIO config'},
             'bp_indicator': {'state': 'm'}
         })
-
-        # ---- Normalize GPIO mode and set BCM ----
-        ensure_gpio_bcm()
-
+        # NOTE : GPIO MODE-BCM
+        GPIO.setmode(GPIO.BCM)
         socketio.emit('bp_update', {
             'bp_state': {'state': 'GPIO setup'},
             'bp_indicator': {'state': 'm'}
         })
 
-        # ---- Set up GPIO pins ----
         GPIO.setup(RELAY_1, GPIO.OUT)
         GPIO.setup(RELAY_2, GPIO.OUT)
-
-        # Assume active-low relay → HIGH = off
         GPIO.output(RELAY_1, GPIO.HIGH)
         GPIO.output(RELAY_2, GPIO.HIGH)
 
         time.sleep(1)
-
         info("BP GPIO Configuration Completed!")
         socketio.emit('bp_update', {
             'bp_state': {'state': 'GPIO success'},
-            'bp_indicator': {'state': 'c'}
+            'bp_indicator': {'state': 'm'}
         })
 
+    except RuntimeError as e:
+        error(f"RuntimeError during GPIO setup: {e}")
+        socketio.emit('bp_update', {
+            'bp_state': {'state': 'GPIO runtime-error'},
+            'bp_indicator': {'state': 'e'}
+        })
+        raise
+
     except Exception as e:
-        # Handle unexpected exceptions
-        error_message = f"Unexpected error during GPIO setup: {e}"
-        error(error_message)
+        error(f"Unexpected error during GPIO setup: {e}")
         socketio.emit('bp_update', {
             'bp_state': {'state': 'GPIO config-error'},
             'bp_indicator': {'state': 'e'}
         })
         raise
 
-def bp_gpio_clear(RELAY_1=None, RELAY_2=None, cleanup=True):
-    try:
-        mode = GPIO.getmode()
-        # If no mode / invalid mode, there's nothing meaningful to do
-        if mode is None or mode == -1:
-            info("bp_gpio_clear: GPIO mode is None/-1, skipping outputs and cleanup")
-            return
+# ============================================================
+# NOTE : RELAY CONTROL
+# ============================================================
 
-        # Safely switch relays off if pins and mode exist
-        if RELAY_1 is not None:
-            GPIO.output(RELAY_1, GPIO.HIGH)
-        if RELAY_2 is not None:
-            GPIO.output(RELAY_2, GPIO.HIGH)
-
-        if cleanup:
-            GPIO.cleanup()  # resets mode to None
-        info("BP GPIO cleanup completed.")
-    except Exception as e:
-        error(f"GPIO cleanup error: {e}")
-
-
-        
 def relay_control(socketio, relay, RELAY_1=17, RELAY_2=18):
     relay_pin = RELAY_1 if relay == 1 else RELAY_2
     try:
@@ -168,7 +126,6 @@ def bp_process_state(socketio, state, bp_states, state_size=6):
                 relay_control(socketio, 1)
                 return False, ocr_triggered
 
-    # socketio.emit('bp_state', {'state': f'Measurement State Completed!'})
     return True, ocr_triggered
 
 def bp_control(socketio, usb_port):
@@ -179,7 +136,7 @@ def bp_control(socketio, usb_port):
     ocr_triggered = False
     
     try:
-        ser = initialize_serial(usb_port)
+        ser = Init_Serial(usb_port)
         socketio.emit('bp_update', {
                 'bp_state': {'state': 'Connection..'},
                 'bp_indicator': {'state': 'm'}
@@ -190,7 +147,7 @@ def bp_control(socketio, usb_port):
             info("Serial port is open and configured.")
             socketio.emit('bp_update', {
                 'bp_state': {'state': 'Connected!'},
-                'bp_indicator': {'state': 'c'}
+                'bp_indicator': {'state': 'm'}
             })
             relay_control(socketio, 1)
             
@@ -205,9 +162,12 @@ def bp_control(socketio, usb_port):
                             'bp_indicator': {'state': 'm'}
                         })
                         info(f"Debug BP Stage: {bp_stage}")
-                        # socketio.emit('bp_state', {'msg_state': f'Measurement State {bp_stage}'})
                         in_process, ocr_triggered = bp_process_state(socketio, bp_stage, bp_states)
                         if not in_process:
+                            socketio.emit('bp_update', {
+                            'bp_state': {'state': 'BP-Stage Incomplete!'},
+                            'bp_indicator': {'state': 'e'}
+                            })
                             break
                 except Exception as e:
                     error(f"Error processing state: {e}")
@@ -220,6 +180,10 @@ def bp_control(socketio, usb_port):
         except Exception as e:
             info(f"Error closing serial port: {e}")
     return ocr_triggered
+
+# ============================================================
+# NOTE : OCR DETECTION PROCESS
+# ============================================================
 
 def process_frame_ocr(roi, contour_area_threshold):
     gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
@@ -258,9 +222,6 @@ def verify_value(buffer):
 
 def bp_ocr_reader(measure_time, ocr_cam):
 
-    # rm_ocr_path = os.path.join(os.getcwd(), 'static', 'blood_pressure')
-    # clear_and_ensure_folder(rm_ocr_path)
-
     buffer_sys, buffer_dia , buffer_pulse= [], [], []
     start_time = time.time()
 
@@ -278,9 +239,7 @@ def bp_ocr_reader(measure_time, ocr_cam):
 
             buffer_sys, text_sys, closing_sys, clahe_sys = ocr_function(frame, (210, 450, 110, 270), (0, 255, 0), buffer_sys)
             buffer_dia, text_dia, closing_dia, clahe_dia = ocr_function(frame, (230, 450, 270, 440), (255, 0, 255), buffer_dia)
-            buffer_pulse, text_pulse, closing_pulse, clahe_pulse = ocr_function(frame, (230, 400, 440, 540), (255, 255, 0), buffer_pulse)
-            # buffer_sys, text_sys, closing_sys, clahe_sys = ocr_function(frame, (200, 460, 20, 185), (0, 255, 0), buffer_sys)
-            # buffer_dia, text_dia, closing_dia, clahe_dia = ocr_function(frame, (200, 460, 180, 360), (255, 0, 255), buffer_dia)
+            # buffer_pulse, text_pulse, closing_pulse, clahe_pulse = ocr_function(frame, (230, 400, 440, 540), (255, 255, 0), buffer_pulse)
             
             final_sys = verify_value(buffer_sys)
             final_dia = verify_value(buffer_dia)
@@ -288,7 +247,7 @@ def bp_ocr_reader(measure_time, ocr_cam):
 
             cv2.putText(frame, f"sys: {text_sys}", (70, 210), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
             cv2.putText(frame, f"dia: {text_dia}", (70, 270), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 255), 2)
-            cv2.putText(frame, f"pulse: {text_pulse}", (70, 270), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 255), 2)
+            # cv2.putText(frame, f"pulse: {text_pulse}", (70, 270), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 255), 2)
 
             if final_sys and final_dia:
                 info("OCR Data:", {"systolic": final_sys, "diastolic": final_dia, "pulse": final_pulse})
@@ -297,8 +256,8 @@ def bp_ocr_reader(measure_time, ocr_cam):
                 save_image(closing_dia, os.path.join(os.getcwd(), f'static/bp_image/bp_images_closing_dia_{measure_time}.png'))
                 save_image(clahe_sys, os.path.join(os.getcwd(), f'static/bp_image/bp_images_clahe_sys_{measure_time}.png'))
                 save_image(clahe_dia, os.path.join(os.getcwd(), f'static/bp_image/bp_images_clahe_dia_{measure_time}.png'))
-                save_image(closing_pulse, os.path.join(os.getcwd(), f'static/bp_image/bp_images_closing_pulse_{measure_time}.png'))
-                save_image(clahe_pulse, os.path.join(os.getcwd(), f'static/bp_image/bp_images_closing_pulse_{measure_time}.png'))
+                # save_image(closing_pulse, os.path.join(os.getcwd(), f'static/bp_image/bp_images_closing_pulse_{measure_time}.png'))
+                # save_image(clahe_pulse, os.path.join(os.getcwd(), f'static/bp_image/bp_images_closing_pulse_{measure_time}.png'))
                 break
             
             if time.time() - start_time > 30:
@@ -308,8 +267,8 @@ def bp_ocr_reader(measure_time, ocr_cam):
                 save_image(closing_dia, os.path.join(os.getcwd(), f'static/bp_image/bp_images_closing_dia_{measure_time}.png'))
                 save_image(clahe_sys, os.path.join(os.getcwd(), f'static/bp_image/bp_images_clahe_sys_{measure_time}.png'))
                 save_image(clahe_dia, os.path.join(os.getcwd(), f'static/bp_image/bp_images_clahe_dia_{measure_time}.png'))
-                save_image(closing_pulse, os.path.join(os.getcwd(), f'static/bp_image/bp_images_closing_pulse_{measure_time}.png'))
-                save_image(clahe_pulse, os.path.join(os.getcwd(), f'static/bp_image/bp_images_closing_pulse_{measure_time}.png'))
+                # save_image(closing_pulse, os.path.join(os.getcwd(), f'static/bp_image/bp_images_closing_pulse_{measure_time}.png'))
+                # save_image(clahe_pulse, os.path.join(os.getcwd(), f'static/bp_image/bp_images_closing_pulse_{measure_time}.png'))
                 return bp_emp_data
 
         picam2.close()
@@ -317,7 +276,6 @@ def bp_ocr_reader(measure_time, ocr_cam):
         info(f"Error during OCR detection: {e}")
     finally:
         picam2.close()
-
     return {"systolic": final_sys, "diastolic": final_dia}
 
 def bp_process_acceptable(socketio, ocr_triggered, measure_time, ocr_cam):
@@ -355,12 +313,12 @@ def bp_process_acceptable(socketio, ocr_triggered, measure_time, ocr_cam):
 
     return bp_emp_data, bp_msg
 
+# ============================================================
+# NOTE : BP MEASUREMENT CONTROL
+# ============================================================
+
 def bp_controller(socketio: SocketIO, measure_time, ocr_cam, usb_port):
     info("START MEASUREMENT: BLOOD PRESSURE")
-
-    RELAY_1 = 17
-    RELAY_2 = 18
-
     bp_data = {
         "systolic": 0,
         "diastolic": 0,
@@ -370,10 +328,8 @@ def bp_controller(socketio: SocketIO, measure_time, ocr_cam, usb_port):
     }
 
     try:
-        bp_gpio_setup(socketio, RELAY_1, RELAY_2)
-
+        bp_gpio_Setup(socketio, RELAY_1 =17, RELAY_2=18)
         ocr_triggered = bp_control(socketio, usb_port)
-
         bp_result, bp_msg = bp_process_acceptable(
             socketio, ocr_triggered, measure_time, ocr_cam
         )
@@ -382,11 +338,5 @@ def bp_controller(socketio: SocketIO, measure_time, ocr_cam, usb_port):
         bp_data["success"] = (bp_msg == "Completed")
 
         return bp_data
-    finally:
-        # Always attempt to clean up GPIO so next call starts clean
-        try:
-            bp_gpio_clear(RELAY_1, RELAY_2, cleanup=True)
-        except Exception as e:
-            error(f"GPIO cleanup error during bp_controller: {e}")
-
-
+    except Exception as e:
+        error(f"GPIO cleanup error during bp_controller: {e}")

@@ -1,18 +1,35 @@
 <script setup lang="ts">
-import HeaderAnimate from '~/components/HeaderAnimate.vue';
-import MainActionButton from '~/components/MainActionButton.vue';
-
+import { onMounted } from 'vue'
+import HeaderAnimate from '~/components/HeaderAnimate.vue'
+import MainActionButton from '~/components/MainActionButton.vue'
 
 const headerMessages = [
-    "Mobility Healthcare Robot",
-    "Welcome to Robo Assistant Application"
+  'Mobility Healthcare Robot',
+  'Welcome to Robo Assistant Application'
 ]
 
 const actionButtons = [
-    { label: "Face Verify", to: "/face_verify" },
-    { label: "Face Register", to: "/face_register" },
-    { label: "Measurement", to: "/temp_measurement" }
+  { label: 'Face Verify', to: '/face_verify' },
+  { label: 'Face Register', to: '/face_register' },
+  { label: 'Measurement', to: '/temp_measurement' }
 ]
+
+const resetStages = () => {
+  if (typeof window === 'undefined') return
+
+  // clear anything you use to keep stages / results
+  sessionStorage.removeItem('wellness_temp')
+  sessionStorage.removeItem('wellness_sys')
+  sessionStorage.removeItem('wellness_dia')
+  sessionStorage.removeItem('wellness_pulse')
+
+  // if you later use other keys, clear them here too
+  // e.g. sessionStorage.removeItem('measurement_stage')
+}
+
+onMounted(() => {
+  resetStages()
+})
 </script>
 
 <template>

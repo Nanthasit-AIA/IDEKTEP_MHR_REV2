@@ -98,8 +98,6 @@ def api_bp_measurement():
         ocr_cam=OCR_CAM,
         usb_port=BP_PORT,
     )
-
-    # bp_data already includes systolic/diastolic (and msg if you added earlier)
     return jsonify(bp_data)
 
 INFO_DIR = os.path.join("static", "information")
