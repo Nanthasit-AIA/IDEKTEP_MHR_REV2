@@ -239,7 +239,7 @@ const displayTempResult = computed(() => {
                                             </mask>
                                         </defs>
 
-                                        <rect width="100%" height="100%" fill="rgb(209, 213, 219)" fill-opacity="0.7"
+                                        <rect width="100%" height="100%" fill="rgb(209, 213, 219)" fill-opacity="1"
                                             mask="url(#circleMask)" />
 
                                         <circle :cx="screenWidth / 2" :cy="screenHeight / 2"

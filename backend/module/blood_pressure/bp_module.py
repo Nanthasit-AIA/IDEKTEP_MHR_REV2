@@ -35,6 +35,15 @@ def Init_Serial(usb_port):
 def save_image(region, filename):
     cv2.imwrite(filename, region)
 
+def ensure_gpio_mode():
+    mode = GPIO.getmode()
+    if mode in (None, -1):
+        GPIO.setwarnings(False)
+        GPIO.setmode(GPIO.BCM)
+        info(f"[BP] GPIO setup: {GPIO.getmode()!r}")
+    elif mode != GPIO.BCM:
+        raise RuntimeError(f"error set mode {mode} or {GPIO.getmode()!r}")
+
 def bp_gpio_Setup(socketio, RELAY_1, RELAY_2):
     try:
         info("Start BP-GPIO Configuration")
@@ -43,7 +52,8 @@ def bp_gpio_Setup(socketio, RELAY_1, RELAY_2):
             'bp_indicator': {'state': 'm'}
         })
         # NOTE : GPIO MODE-BCM
-        GPIO.setmode(GPIO.BCM)
+        info(f"[BP] GPIO setup: {GPIO.getmode()!r}")
+        ensure_gpio_mode()
         socketio.emit('bp_update', {
             'bp_state': {'state': 'GPIO setup'},
             'bp_indicator': {'state': 'm'}
@@ -336,7 +346,8 @@ def bp_controller(socketio: SocketIO, measure_time, ocr_cam, usb_port):
         bp_data.update(bp_result)
         bp_data["msg"] = bp_msg
         bp_data["success"] = (bp_msg == "Completed")
-
         return bp_data
     except Exception as e:
         error(f"GPIO cleanup error during bp_controller: {e}")
+    finally:
+        GPIO.cleanup((17,18))

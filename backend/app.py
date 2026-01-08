@@ -10,12 +10,16 @@ import time
 import os
 import csv
 from datetime import datetime
+import RPi.GPIO as GPIO
 # from module.face_recognition.face_verify import stream_face_collection  # adjust import path
 
 USB_PORT = "/dev/ttyUSB1"
 BP_PORT = "/dev/ttyUSB0" 
 FACE_CAM = 0
 OCR_CAM = 1
+GPIO.setwarnings(False)
+if GPIO.getmode() is None:
+    GPIO.setmode(GPIO.BCM)
 
 # ----------------------------
 #  APPLICATION SETUP
