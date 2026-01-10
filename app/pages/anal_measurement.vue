@@ -65,7 +65,7 @@ const analStatusText = computed(() => {
 });
 
 const mainButtonLabel = computed(() =>
-  !analysisDone.value ? 'wellness analysis' : 'save & back to home'
+  !analysisDone.value ? 'wellness analysis' : 'Back to Homepage'
 );
 
 // ---------- Helpers ----------
@@ -400,20 +400,22 @@ onMounted(() => {
                     </div>
 
                     <!-- Result emoji -->
-                    <span v-else-if="analIndicator === 'c'" class="text-6xl ml-10">
-                      😊
+                    <span v-else-if="analIndicator === 'c'" class="text-6xl ml-10 text-green-500">
+                      <i class="fi fi-sr-grin"></i>
                     </span>
 
-                    <span v-else-if="analIndicator === 'm'" class="text-6xl ml-10">
-                      😕
+                    <span v-else-if="analIndicator === 'm'" class="text-6xl ml-10 text-yellow-400">
+                      <i class="fi fi-ss-face-sad-sweat"></i>
                     </span>
 
-                    <span v-else-if="analIndicator === 'e'" class="text-6xl ml-10">
-                      ☹️
+                    <span v-else-if="analIndicator === 'e'" class="text-6xl ml-10 text-red-500">
+                      <i class="fi fi-ss-face-scream"></i>
                     </span>
 
                     <!-- Idle (blank) -->
-                    <span v-else class="text-6xl ml-10"></span>
+                    <span v-else class="text-6xl ml-10">
+                      <i class="fi fi-sr-face-smiling-hands"></i>
+                    </span>
                   </div>
 
                   <!-- Main Text -->
@@ -426,8 +428,11 @@ onMounted(() => {
 
                     <!-- Lines -->
                     <div class="mt-4 space-y-1 text-lg ml-10">
-                      <p v-if="analysisTempLine">🌡️ {{ analysisTempLine }}</p>
-                      <p v-if="analysisBpLine">🩸 {{ analysisBpLine }}</p>
+                      <p v-if="analysisTempLine"><i
+                          class="fi fi-rs-temperature-high justify-center text-md text-2xl mr-2" /> {{ analysisTempLine
+                          }}</p>
+                      <p v-if="analysisBpLine"><i class="fi fi-rs-blood justify-center text-md text-2xl mr-2" /> {{
+                        analysisBpLine }}</p>
                     </div>
 
                     <!-- Footer message -->
@@ -480,11 +485,8 @@ onMounted(() => {
           </div>
         </div>
       </div>
-      <button @click="handleMeasurementClick"
-              :disabled="!canClickMainButton || isAnalyzing"
-              class="px-20 py-8 text-3xl font-extrabold rounded-2xl shadow-xl 
-                    hover:scale-110 transition-all duration-600 whitespace-nowrap text-center"
-              :class="!canClickMainButton || isAnalyzing
+      <button @click="handleMeasurementClick" :disabled="!canClickMainButton || isAnalyzing" class="px-20 py-8 text-3xl font-extrabold rounded-2xl shadow-xl 
+                    hover:scale-110 transition-all duration-600 whitespace-nowrap text-center" :class="!canClickMainButton || isAnalyzing
                       ? 'bg-gray-400 text-gray-700 cursor-not-allowed'
                       : 'bg-black text-white hover:bg-blue-600'">
         {{ mainButtonLabel }}

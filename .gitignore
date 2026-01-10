@@ -27,3 +27,5 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+/backend/static/mesurement
+/backend/static/irt_image

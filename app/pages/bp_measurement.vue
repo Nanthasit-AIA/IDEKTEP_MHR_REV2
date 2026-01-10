@@ -244,6 +244,7 @@ const goToAnalMeasurement = () => {
               <div
                 class="absolute top-6 left-1/2 transform -translate-x-1/2 bg-black rounded-2xl  py-6 flex items-center justify-between w-[90%]"
                 style="min-width: 60%;">
+                <i class="fi fi-rs-blood text-white text-md flex items-center justify-center ml-7 text-2xl" ></i>
                 <span class="text-white text-2xl font-bold ml-5">
                   Blood Pressure
                 </span>
